@@ -4,52 +4,27 @@
 #include "gurobi_c++.h"
 #include "gurobi_c.h"
 #include "milp.h"
+#include "milp_top.h"
 
 using namespace std;
 
-#define PE_MAX   512
-#define SIMD_MAX 64
-#define PE_EXP log(PE_MAX)
-#define SIMD_EXP log(SIMD_MAX)
-#define MAX_LUT_PYNQ 55637
-#define NUM_QUADRANTS 4
-
 typedef vector<GRBVar>          GRBVarArray;
-typedef vector<GRBVarArray>     GRBVar2DArray;
+typedef vector<GRBVarArray>     GRBVar2DArray; 
 
-const unsigned int num_conv_layer   = 6;
-const unsigned int num_lfc_layer    = 3;
-unsigned long long int num_ops_per_layer[num_conv_layer + num_lfc_layer];
-unsigned int pe_threshold = 16; //
-unsigned int simd_threshold = 16; //
-unsigned long long BIG_M = 10000000000000; //represents infinity
-double episilon = 0.1;
-
-/***********************************************************
-    network_arch is the number of operations per layer
-    network_arch[0] = 842  * 1024
-    network_arch[1] = 1024 * 1024
-    network_arch[2] = 1024 * 1024
-    network_arch[3] = 1024 * 64
-********************************************************/
-unsigned int network_arch[] = {862208, 1048576, 1048576, 65536};
-
-int milp_solver()
+int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
+                unsigned int num_lfc_layer, unsigned long long int *num_ops_per_layer,
+                model_variables *res_model_lfc, model_variables *res_model_conv)
 {
-    /*********************************************************************************
-        #LUT(i) = 97.24 * pe(i) + 25.52 * simd(i) + 4110 -- quadrant 1
-        #LUT(i) = 88.72 * pe(i) + 122   * simd(i) + 3417 -- quadrant 2
-        #LUT(i) = 242.1 * pe(i) + 209.4 * simd(i) - 3380 -- quadrant 3
-        #LUT(i) = 250   * pe(i) + 45.94 * simd(i) + 2544 -- quadrant 4
-    ******************************************************************************/
-    model_variables res_model_lfc[NUM_QUADRANTS] = {{97.24, 28.52, 4110}, {88.72, 122, 3417},
-                                                {242.1, 209.4, -3380}, {250, 45.94, 2544}};
-    
-    model_variables res_model_conv[NUM_QUADRANTS] = {{97.24, 28.52, 4110}, {88.72, 122, 3417},
-                                                {242.1, 209.4, -3380}, {250, 45.94, 2544}};
+    int MAX_LUT_PYNQ = num_lut;
+
     int i, j, k;
     int status;
 
+    unsigned int pe_threshold = 16; 
+    unsigned int simd_threshold = 16; 
+    unsigned long long BIG_M = 10000000000000; //represents infinity
+    double episilon = 0.1;
+ 
     try {
     
         GRBEnv env = GRBEnv();
@@ -131,13 +106,13 @@ int milp_solver()
     ***********************************************************************/
     GRBVarArray lut(num_conv_layer + num_lfc_layer);
     for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
-        lut[i] = model.addVar(0.0, MAX_LUT_PYNQ, 0.0, GRB_INTEGER);
+        lut[i] = model.addVar(1.0, MAX_LUT_PYNQ, 0.0, GRB_CONTINUOUS);
     }
    
    /**********************************************************************
          name: tau
          type: integer
-         func: lut[i] represent the number or LUT in the ith layer
+         func: 
     ***********************************************************************/
     GRBVarArray tau(num_conv_layer + num_lfc_layer);
     for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
@@ -166,9 +141,16 @@ int milp_solver()
     for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
         layer_lat[i] = model.addVar(0.0, GRB_INFINITY, 0.0, GRB_CONTINUOUS);
     }
- 
-    model.update();
 
+    /**************************************************************************
+         name: max_lat
+         type: binary
+         func: max_lat is the maximum of all the latencies of each layer 
+     ***************************************************************************/
+       GRBVar max_lat;
+        max_lat = model.addVar(0.0, GRB_INFINITY, 0.0, GRB_CONTINUOUS);
+
+    model.update();
     /****************************************************************************
     Constr 1.1: alpha[][0] == 0 iff pe < pe_threshold else alpha[][0] == 1
                 alpha[][1] == 0 iff simd < pe_threshold else alpha[][1] == 1
@@ -177,13 +159,13 @@ int milp_solver()
                 to calculate the resource consumption
     ****************************************************************************/
     for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
-        model.addConstr(pe[i] + episilon >= pe_threshold - BIG_M * (1 - alpha[i][0]), "1");
-        model.addConstr(pe[i] + episilon <= pe_threshold + BIG_M * alpha[i][0], "2");
+        model.addConstr(pe[i] - episilon >= pe_threshold - BIG_M * (1 - alpha[i][0]), "1");
+        model.addConstr(pe[i] - episilon <= pe_threshold + BIG_M * alpha[i][0], "2");
     }
     
     for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
-        model.addConstr(simd[i] + episilon >= simd_threshold - BIG_M * (1 - alpha[i][1]), "3");
-        model.addConstr(simd[i] + episilon <= simd_threshold + BIG_M * alpha[i][1], "4");
+        model.addConstr(simd[i] - episilon >= simd_threshold - BIG_M * (1 - alpha[i][1]), "3");
+        model.addConstr(simd[i] - episilon <= simd_threshold + BIG_M * alpha[i][1], "4");
     }
         
     /******************************************************************
@@ -196,24 +178,23 @@ int milp_solver()
         model.addConstr(lut[i] >= res_model_conv[0].pe_coeff   * pe[i]   +
                                   res_model_conv[0].simd_coeff * simd[i] +
                                   res_model_conv[0].intercept -
-                                  (alpha[i][0] + alpha[i][1]) * BIG_M, "4");
+                                  ((alpha[i][0] + alpha[i][1]) * BIG_M), "5");
 
         model.addConstr(lut[i] >= res_model_conv[1].pe_coeff   * pe[i]   +
                                   res_model_conv[1].simd_coeff * simd[i] +
                                   res_model_conv[1].intercept -
-                                  (1 - alpha[i][0] + alpha[i][1]) * BIG_M, "5");
+                                  ((1 - alpha[i][0] + alpha[i][1]) * BIG_M), "6");
 
         model.addConstr(lut[i] >= res_model_conv[2].pe_coeff   * pe[i]   +
                                   res_model_conv[2].simd_coeff * simd[i] +
                                   res_model_conv[2].intercept -
-                                  (1 + alpha[i][0] - alpha[i][1]) * BIG_M, "6");
+                                  ((1 + alpha[i][0] - alpha[i][1]) * BIG_M), "7");
 
         model.addConstr(lut[i] >= res_model_conv[3].pe_coeff   * pe[i]   +
                                   res_model_conv[3].simd_coeff * simd[i] +
                                   res_model_conv[3].intercept -
-                                  (2 - alpha[i][0] - alpha[i][1]) * BIG_M, "7");
+                                  ((2 - alpha[i][0] - alpha[i][1]) * BIG_M), "8");
 
-        exp += lut[i];
     }
 
 
@@ -238,39 +219,65 @@ int milp_solver()
                                   res_model_lfc[3].intercept -
                                   (2 - alpha[i][0] - alpha[i][1]) * BIG_M, "7");
     
-        exp += lut[i];
     }
-
-    model.addConstr(exp <= MAX_LUT_PYNQ, "8");
     
     /******************************************************************
         Constr 1.3: This is a mirror of constr 1.2 to enforce
                     equality
     ******************************************************************/
-/*
-    for(i = 0; i < num_layer; i++) {
-        model.addConstr(res_model[0].pe_coeff   *  pe[i]   +
-                        res_model[0].simd_coeff *  simd[i] + 
-                        res_model[0].intercept  >= lut[i]  - 
+
+    for(i = 0; i < num_conv_layer; i++) {
+        model.addConstr((res_model_conv[0].pe_coeff  *  pe[i]   +
+                        res_model_conv[0].simd_coeff *  simd[i] + 
+                        res_model_conv[0].intercept)  >= (lut[i]  - 
+                        ((alpha[i][0] + alpha[i][1]) * BIG_M)), "9");
+        
+        model.addConstr((res_model_conv[1].pe_coeff  * pe[i]    +
+                        res_model_conv[1].simd_coeff * simd[i]  + 
+                        res_model_conv[1].intercept) >= (lut[i]   -
+                        (1 - alpha[i][0] + alpha[i][1]) * BIG_M), "10");
+        
+        model.addConstr((res_model_conv[2].pe_coeff  * pe[i]    +
+                        res_model_conv[2].simd_coeff * simd[i]  +
+                        res_model_conv[2].intercept)  >= (lut[i]  - 
+                                  ((1 + alpha[i][0] - alpha[i][1]) * BIG_M)), "11");
+
+        model.addConstr((res_model_conv[3].pe_coeff  * pe[i]   +
+                        res_model_conv[3].simd_coeff * simd[i] +
+                        res_model_conv[3].intercept) >= (lut[i]  -
+                        ((2 - alpha[i][0] - alpha[i][1]) * BIG_M)), "12");
+   
+    }
+     
+
+    for(i = num_conv_layer; i < num_lfc_layer + num_conv_layer; i++) {
+        model.addConstr(res_model_lfc[0].pe_coeff   *  pe[i]   +
+                        res_model_lfc[0].simd_coeff *  simd[i] + 
+                        res_model_lfc[0].intercept  >= lut[i]  - 
                         (alpha[i][0] + alpha[i][1]) * BIG_M, "9");
         
-        model.addConstr(res_model[1].pe_coeff   * pe[i]    +
-                        res_model[1].simd_coeff * simd[i]  + 
-                        res_model[1].intercept >= lut[i]   -
+        model.addConstr(res_model_lfc[1].pe_coeff   * pe[i]    +
+                        res_model_lfc[1].simd_coeff * simd[i]  + 
+                        res_model_lfc[1].intercept >= lut[i]   -
                         (1 - alpha[i][0] + alpha[i][1]) * BIG_M, "10");
         
-        model.addConstr(res_model[2].pe_coeff   * pe[i]    +
-                        res_model[2].simd_coeff * simd[i]  +
-                        res_model[2].intercept  >= lut[i]  - 
+        model.addConstr(res_model_lfc[2].pe_coeff   * pe[i]    +
+                        res_model_lfc[2].simd_coeff * simd[i]  +
+                        res_model_lfc[2].intercept  >= lut[i]  - 
                                   (1 + alpha[i][0] - alpha[i][1]) * BIG_M, "11");
 
-        model.addConstr(res_model[3].pe_coeff   * pe[i]   +
-                        res_model[3].simd_coeff * simd[i] +
-                        res_model[3].intercept >= lut[i]  -
+        model.addConstr(res_model_lfc[3].pe_coeff   * pe[i]   +
+                        res_model_lfc[3].simd_coeff * simd[i] +
+                        res_model_lfc[3].intercept >= lut[i]  -
                         (2 - alpha[i][0] - alpha[i][1]) * BIG_M, "12");
     
     }
-  */   
+  
+    for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
+        exp += lut[i];
+    }
+
+    model.addConstr(exp <= MAX_LUT_PYNQ, "8");
    /**********************************************************************
         Constr 1.4: The number of PE must be greater than SIMD in a layer
                     Part of a FINN constraint
@@ -308,8 +315,8 @@ int milp_solver()
             exp6 += pow(2, j+1) * beta_simd[i][j];
             exp5 += beta_simd[i][j];
         }
-            model.addConstr(simd[i] == exp6, "15");
-            model.addConstr(exp5 == 1, "16");
+            model.addConstr(simd[i] == exp6, "155");
+            model.addConstr(exp5 == 1, "166");
     }
 
    /**********************************************************************
@@ -321,8 +328,8 @@ int milp_solver()
             exp6 += pow(2, j+1) * beta_tau[i][j];
             exp5 += beta_tau[i][j];
         }
-            model.addConstr(tau[i] == exp6, "15");
-            model.addConstr(exp5 == 1, "16");
+            model.addConstr(tau[i] == exp6, "156");
+            model.addConstr(exp5 == 1, "165");
     }
 
     /**********************************************************************
@@ -351,10 +358,18 @@ int milp_solver()
         }
     }
 
+    /*
     GRBLinExpr exp4;
     for(i = 0;  i < num_conv_layer + num_lfc_layer; i++)
         exp4 += layer_lat[i];
-    
+    */ 
+   
+    GRBLinExpr exp4; 
+    for(i = 0;  i < num_conv_layer + num_lfc_layer; i++)
+        model.addConstr(max_lat >= layer_lat[i], "121");
+        
+    exp4 = max_lat;
+ 
     /**********************************************************************
         Objective function: minimize the latency
     **********************************************************************/
@@ -384,7 +399,7 @@ int milp_solver()
     cout << " total luts used " << total_luts_used << endl;
 
     cout<< "pe_simd" <<endl;
-    for(i = 0; i < num_conv_layer + num_lfc_layer; i++){
+    for(i = 0; i < num_conv_layer; i++){
         cout << "layer " << i << "\t";
         for(j = 0; j < PE_EXP; j++)
             cout << "\t" << beta_pe[i][j].get(GRB_DoubleAttr_X);
@@ -393,7 +408,7 @@ int milp_solver()
     
     cout<< "beta_simd" <<endl;
     int latency = 0;
-    for(i = 0; i < num_conv_layer + num_lfc_layer; i++){
+    for(i = 0; i < num_conv_layer; i++){
         latency += tau[i].get(GRB_DoubleAttr_X);
         cout << "layer " << i << "\t";
         for(j = 0; j < SIMD_EXP; j++)
@@ -403,16 +418,20 @@ int milp_solver()
     
     cout << endl; 
     for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
-        cout<< "lat \t" << tau[i].get(GRB_DoubleAttr_X); 
+        cout<< "PE * SIMD \t" << tau[i].get(GRB_DoubleAttr_X); 
         for(j = 0; j < SIMD_EXP + PE_EXP; j++)
             cout << "\t" << beta_tau[i][j].get(GRB_DoubleAttr_X);
         cout <<endl;
     }
     
     cout <<endl;
+
+    cout << "****** The latency of each layer in clock cycles *****" << endl;
     for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
         cout<< "latency  "<< i << "\t" << layer_lat[i].get(GRB_DoubleAttr_X) << endl;
     }
+
+    cout<< "the maximum latency is "<< max_lat.get(GRB_DoubleAttr_X) <<endl;
 
     }
     else {
@@ -443,24 +462,6 @@ int milp_solver()
         return 0;
     }
     cout << "done !!! "<<endl;
-    
-    return 0;
-}
-
-int main()
-{
-    int i;
-
-    for(i = 0; i < num_conv_layer; i++) {
-        num_ops_per_layer[i] = conv_net[i].IFM * conv_net[i].IFM_CH *  conv_net[i].OFM * conv_net[i].OFM_CH * conv_net[i].k * conv_net[i].k;
-        cout << " num_ops " << i << "  " << num_ops_per_layer[i] << endl;
-    }
-
-    for(i = 0; i < num_lfc_layer; i++) {
-        num_ops_per_layer[num_conv_layer + i] = lfc_net[i].matW * lfc_net[i].matH;
-        cout << " num_ops " << i << "  " << num_ops_per_layer[num_conv_layer + i] << endl;
-    }
-    milp_solver();
     
     return 0;
 }

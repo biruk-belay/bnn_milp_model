@@ -1,0 +1,10 @@
+compile using
+
+For the first cut
+g++ -DFIRST_CUT -o run milp.cpp milp_top.cpp -lgurobi_g++5.2 -lgurobi_c++ -lgurobi70
+
+for the second cut
+g++ -DSECOND_CUT -o run milp.cpp milp_top.cpp -lgurobi_g++5.2 -lgurobi_c++ -lgurobi70
+
+for the full network (without cuts)
+g++ -DFULL -o run milp.cpp milp_top.cpp -lgurobi_g++5.2 -lgurobi_c++ -lgurobi70
