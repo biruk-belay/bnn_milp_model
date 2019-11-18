@@ -8,6 +8,7 @@
 
 using namespace std;
 
+#define BATCH_SIZE 256
 typedef vector<GRBVar>          GRBVarArray;
 typedef vector<GRBVarArray>     GRBVar2DArray; 
 
@@ -335,7 +336,6 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
     /**********************************************************************
         Constr 1.8: latency constraint
     **********************************************************************/
-    GRBLinExpr exp3;
     for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
         for(j = 0; j < SIMD_EXP; j++) {
             model.addConstr(tau[i] >= pow(2, j+1) * pe[i] - (1 - beta_simd[i][j]) * BIG_M, "17");
@@ -363,13 +363,17 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
     for(i = 0;  i < num_conv_layer + num_lfc_layer; i++)
         exp4 += layer_lat[i];
     */ 
-   
-    GRBLinExpr exp4; 
+
+    //Updated delay modeling   
+    GRBLinExpr exp4, exp3; 
     for(i = 0;  i < num_conv_layer + num_lfc_layer; i++)
         model.addConstr(max_lat >= layer_lat[i], "121");
         
-    exp4 = max_lat;
- 
+    for(i = 0;  i < num_conv_layer + num_lfc_layer; i++)
+        exp3 += layer_lat[i];
+            
+    exp4 = (BATCH_SIZE - 1) * max_lat + exp3;
+    
     /**********************************************************************
         Objective function: minimize the latency
     **********************************************************************/
@@ -431,7 +435,19 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
         cout<< "latency  "<< i << "\t" << layer_lat[i].get(GRB_DoubleAttr_X) << endl;
     }
 
+    unsigned long long int total_lat_clock_cycles  = 0;
+    float total_latency = 0.0;
+    for(i = 0;  i < num_conv_layer + num_lfc_layer; i++)
+        total_lat_clock_cycles += layer_lat[i].get(GRB_DoubleAttr_X);
+    
+    //total latency is calculated using a latency calculation for a pipeline
+    total_lat_clock_cycles += (BATCH_SIZE - 1) * max_lat.get(GRB_DoubleAttr_X);
+
+    //total_latency in ms
+    total_latency = (float) total_lat_clock_cycles / 1000000;
     cout<< "the maximum latency is "<< max_lat.get(GRB_DoubleAttr_X) <<endl;
+    cout<< "total latency in clock cycles is "<< total_lat_clock_cycles <<endl;
+    cout<< "total latency in ms is "<< total_latency <<endl;
 
     }
     else {
