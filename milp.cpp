@@ -125,14 +125,27 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
          type: binary
          func: beta_tau[i][0] 
      ***************************************************************************/
-    GRBVar2DArray beta_tau(num_conv_layer + num_lfc_layer);
+        GRBVar2DArray beta_tau(num_conv_layer + num_lfc_layer);
+#ifdef FIRST_CUT
+        GRBVarArray beta_first(SIMD_EXP * PE_EXP);
+        beta_tau[0] = beta_first;
+        for(k = 0; k < SIMD_EXP * PE_EXP; k++)
+            beta_tau[0][k] = model.addVar(0.0,  1.0, 0.0, GRB_BINARY);
+        
+        for(i = 1; i < num_conv_layer + num_lfc_layer; i++) {
+            GRBVarArray each_alpha(SIMD_EXP + PE_EXP);
+            beta_tau[i] = each_alpha;
+            for(k = 0; k < (SIMD_EXP + PE_EXP); k++)
+                beta_tau[i][k] = model.addVar(0.0,  1.0, 0.0, GRB_BINARY); 
+        }
+#else
         for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
             GRBVarArray each_alpha(SIMD_EXP + PE_EXP);
             beta_tau[i] = each_alpha;
             for(k = 0; k < (SIMD_EXP + PE_EXP); k++)
-                beta_tau[i][k] = model.addVar(0.0,  1.0, 0.0, GRB_BINARY);
-         }
-
+                beta_tau[i][k] = model.addVar(0.0,  1.0, 0.0, GRB_BINARY); 
+        }
+#endif
     /**************************************************************************
          name: layer_lat
          type: binary
@@ -310,6 +323,26 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
    /**********************************************************************
         Constr 1.6: similar to constraint 1.5 but for simd
     **********************************************************************/
+#ifdef FIRST_CUT        
+    GRBLinExpr exp5, exp6;
+    for(j = 0; j < SIMD_EXP; j++) {    
+        exp6 += 3 * (j+1) * beta_simd[0][j];
+        exp5 += beta_simd[0][j];
+    }       
+    
+    model.addConstr(simd[0] == exp6, "125");     
+    model.addConstr(exp5 == 1, "126");
+ 
+    for(i = 1; i < num_conv_layer + num_lfc_layer; i++) {
+        GRBLinExpr exp5, exp6;
+        for(j = 0; j < SIMD_EXP; j++) {
+            exp6 += pow(2, j+1) * beta_simd[i][j];
+            exp5 += beta_simd[i][j];
+        }
+            model.addConstr(simd[i] == exp6, "127");
+            model.addConstr(exp5 == 1, "128");
+    }
+#else
     for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
         GRBLinExpr exp5, exp6;
         for(j = 0; j < SIMD_EXP; j++) {
@@ -319,10 +352,33 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
             model.addConstr(simd[i] == exp6, "155");
             model.addConstr(exp5 == 1, "166");
     }
+#endif
 
    /**********************************************************************
         Constr 1.7: similar to constr 1.5 but for tau
     **********************************************************************/
+#ifdef FIRST_CUT
+    GRBLinExpr exp7, exp8;
+    for(i = 0; i < SIMD_EXP; i++) { 
+        for(j = 0; j < PE_EXP; j++) {
+            exp8 += 3 * (i+1) * pow(2, j+1) * beta_tau[0][i * SIMD_EXP + j];
+            exp7 += beta_tau[0][i * SIMD_EXP + j];    
+        }
+    }
+    model.addConstr(tau[0] == exp8, "156");    
+    model.addConstr(exp7 == 1, "165");
+
+    for(i = 1; i < num_conv_layer + num_lfc_layer; i++) {
+        GRBLinExpr exp5, exp6;
+        for(j = 0; j < SIMD_EXP + PE_EXP; j++) {
+            exp6 += pow(2, j+1) * beta_tau[i][j];
+            exp5 += beta_tau[i][j];
+        }
+            model.addConstr(tau[i] == exp6, "156");
+            model.addConstr(exp5 == 1, "165");
+    }
+#else
+    GRBLinExpr exp5, exp6;
     for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
         GRBLinExpr exp5, exp6;
         for(j = 0; j < SIMD_EXP + PE_EXP; j++) {
@@ -332,21 +388,59 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
             model.addConstr(tau[i] == exp6, "156");
             model.addConstr(exp5 == 1, "165");
     }
-
+#endif
     /**********************************************************************
         Constr 1.8: latency constraint
     **********************************************************************/
-    for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
+#ifdef FIRST_CUT
+    for(j = 0; j < SIMD_EXP; j++) {
+            model.addConstr(tau[0] >= 3 * (j+1) * pe[0] - (1 - beta_simd[0][j]) * BIG_M, "171");
+            model.addConstr(3 * (j+1) * pe[0] >= tau[0] - (1 - beta_simd[0][j]) * BIG_M, "181");
+        }
+    for(i = 1; i < num_conv_layer + num_lfc_layer; i++) {
         for(j = 0; j < SIMD_EXP; j++) {
-            model.addConstr(tau[i] >= pow(2, j+1) * pe[i] - (1 - beta_simd[i][j]) * BIG_M, "17");
-            model.addConstr(pow(2, j+1) * pe[i] >= tau[i] - (1 - beta_simd[i][j]) * BIG_M, "18");
+            model.addConstr(tau[i] >= pow(2, j+1) * pe[i] - (1 - beta_simd[i][j]) * BIG_M, "172");
+            model.addConstr(pow(2, j+1) * pe[i] >= tau[i] - (1 - beta_simd[i][j]) * BIG_M, "182");
         }
        //exp3 += tau[i];
     }
+
+#else
+    for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
+        for(j = 0; j < SIMD_EXP; j++) {
+            model.addConstr(tau[i] >= pow(2, j+1) * pe[i] - (1 - beta_simd[i][j]) * BIG_M, "173");
+            model.addConstr(pow(2, j+1) * pe[i] >= tau[i] - (1 - beta_simd[i][j]) * BIG_M, "184");
+        }
+       //exp3 += tau[i];
+    }
+#endif
+
+
+#ifdef FIRST_CUT    
+    for(i=0; i < SIMD_EXP; i++){
+       for(j = 0; j < PE_EXP; j++) {
+         model.addConstr((num_ops_per_layer[0] / (3 * (i+1) * pow(2, j+1))) >=  layer_lat[0] - (1 - beta_tau[0][i * SIMD_EXP + j]) * BIG_M, "19");
+         model.addConstr(layer_lat[0]  >= (num_ops_per_layer[0] / (3 * (i + 1) * pow(2, j+1))) - (1 - beta_tau[0][i * SIMD_EXP + j]) * BIG_M, "20");
+        }
+    }
     
+    for(i = 1; i < num_conv_layer; i++) {
+       for(j = 0; j < SIMD_EXP + PE_EXP; j++) {
+          model.addConstr((num_ops_per_layer[i] / pow(2, j+1)) >=  layer_lat[i] - (1 - beta_tau[i][j]) * BIG_M, "19");
+          model.addConstr(layer_lat[i]  >= (num_ops_per_layer[i] / pow(2, j+1)) - (1 - beta_tau[i][j]) * BIG_M, "20");
+       }
+    }
+
+    for(i = num_conv_layer; i < num_conv_layer + num_lfc_layer; i++) {
+        for(j = 0; j < SIMD_EXP + PE_EXP; j++) {
+            model.addConstr((num_ops_per_layer[i] / pow(2, j+1)) >=  layer_lat[i] - (1 - beta_tau[i][j]) * BIG_M, "21");
+            model.addConstr(layer_lat[i] >= (num_ops_per_layer[i] / pow(2, j+1))- (1 - beta_tau[i][j]) * BIG_M, "22");
+        }
+    }
+#else
     for(i = 0; i < num_conv_layer; i++) {
         for(j = 0; j < SIMD_EXP + PE_EXP; j++) {
-            model.addConstr((num_ops_per_layer[i] / pow(2, j+1)) >=  layer_lat[i] - (1 - beta_tau[i][j]) * BIG_M, "19");    
+            model.addConstr((num_ops_per_layer[i] / pow(2, j+1)) >=  layer_lat[i] - (1 - beta_tau[i][j]) * BIG_M, "19");
             model.addConstr(layer_lat[i]  >= (num_ops_per_layer[i] / pow(2, j+1)) - (1 - beta_tau[i][j]) * BIG_M, "20");
         }
     }
@@ -357,6 +451,7 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
             model.addConstr(layer_lat[i] >= (num_ops_per_layer[i] / pow(2, j+1))- (1 - beta_tau[i][j]) * BIG_M, "22");
         }
     }
+#endif
 
     /*
     GRBLinExpr exp4;
@@ -402,7 +497,7 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
     
     cout << " total luts used " << total_luts_used << endl;
 
-    cout<< "pe_simd" <<endl;
+    cout<< "beta_pe" <<endl;
     for(i = 0; i < num_conv_layer; i++){
         cout << "layer " << i << "\t";
         for(j = 0; j < PE_EXP; j++)
@@ -420,15 +515,30 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
         cout <<endl;
     }
     
-    cout << endl; 
-    for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
-        cout<< "PE * SIMD \t" << tau[i].get(GRB_DoubleAttr_X); 
+    cout << endl;
+#ifdef FIRST_CUT 
+    cout<< "PE * SIMD \t" << tau[0].get(GRB_DoubleAttr_X); 
+    for(i = 0; i < SIMD_EXP; i++) {
+        for(j = 0; j < PE_EXP; j++)
+            cout << "\t" << beta_tau[0][i * SIMD_EXP + j].get(GRB_DoubleAttr_X);
+    }
+    cout <<endl;
+    for(i = 1; i < num_conv_layer + num_lfc_layer; i++) {
+        cout<< "PE * SIMD \t" << tau[i].get(GRB_DoubleAttr_X);
         for(j = 0; j < SIMD_EXP + PE_EXP; j++)
             cout << "\t" << beta_tau[i][j].get(GRB_DoubleAttr_X);
         cout <<endl;
     }
-    
+
+#else     
+    for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
+        cout<< "PE * SIMD \t" << tau[i].get(GRB_DoubleAttr_X);
+        for(j = 0; j < SIMD_EXP + PE_EXP; j++)
+            cout << "\t" << beta_tau[i][j].get(GRB_DoubleAttr_X);
+        cout <<endl;
+    }
     cout <<endl;
+#endif
 
     cout << "****** The latency of each layer in clock cycles *****" << endl;
     for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {

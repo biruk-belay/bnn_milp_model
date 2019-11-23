@@ -1,6 +1,6 @@
 #include <cmath>
 
-#define PE_MAX   128
+#define PE_MAX   64
 #define SIMD_MAX 64
 #define PE_EXP (int) log2(PE_MAX)
 #define SIMD_EXP (int) log2(SIMD_MAX)
