@@ -8,7 +8,7 @@ using namespace std;
 int main()
 {
     int i;
-    float percentage_of_resource_used = 0.25;
+    float percentage_of_resource_used = 0.45;
     unsigned int lut = TOT_LUT_PYNQ * percentage_of_resource_used;
     conv_ntwk_arch conv_net[] = {{32, 3, 30, 64, 3},
                                  {30, 64, 28, 64, 3},
