@@ -8,7 +8,7 @@ using namespace std;
 int main()
 {
     int i;
-    float percentage_of_resource_used = 0.36;
+    float percentage_of_resource_used = 0.42;
     unsigned int lut = TOT_LUT_PYNQ * percentage_of_resource_used;
     conv_ntwk_arch conv_net[] = {{32, 3, 30, 64, 3},
                                  {30, 64, 28, 64, 3},
@@ -33,7 +33,7 @@ int main()
                                                 {19.79, 96.13, 1552}, {121.4, 90.26, -1674}};
 
 #ifdef FIRST_CUT
-    const unsigned int num_conv_layer   = 4;
+    const unsigned int num_conv_layer   = 2;
     const unsigned int num_lfc_layer    = 0; 
     unsigned int cut_layer = 0;
     unsigned long long int num_ops_per_layer[num_conv_layer + num_lfc_layer];
@@ -50,16 +50,16 @@ int main()
     }
     
     for(i = 0; i < num_lfc_layer; i++) {
-        num_ops_per_layer[num_conv_layer + i] = lfc_net[i].matW * lfc_net[i].matH;
-        cout << " num_ops " << i << "  " << num_ops_per_layer[num_conv_layer + i] << endl;
+        num_ops_per_layer[num_conv_layer + i] = 2 * lfc_net[i].matW * lfc_net[i].matH;
+        cout << " num_ops " << num_conv_layer + i << "  " << num_ops_per_layer[num_conv_layer + i] << endl;
     }
     milp_solver(lut, num_conv_layer, num_lfc_layer, num_ops_per_layer, res_model_lfc, res_model_conv);
 #endif
 
 #ifdef SECOND_CUT
-    const unsigned int num_conv_layer   = 2;
+    const unsigned int num_conv_layer   = 4;
     const unsigned int num_lfc_layer    = 3;
-    unsigned int cut_layer = 4; 
+    unsigned int cut_layer = 2; 
     unsigned long long int num_ops_per_layer[num_conv_layer + num_lfc_layer];
     
     for(i = 0; i < num_conv_layer; i++) {
@@ -74,8 +74,8 @@ int main()
     }
     
     for(i = 0; i < num_lfc_layer; i++) {
-        num_ops_per_layer[num_conv_layer + i] = lfc_net[i].matW * lfc_net[i].matH;
-        cout << " num_ops " << i << "  " << num_ops_per_layer[num_conv_layer + i] << endl;
+        num_ops_per_layer[num_conv_layer + i] = 2 * lfc_net[i].matW * lfc_net[i].matH;
+        cout << " num_ops " << num_conv_layer + i << "  " << num_ops_per_layer[num_conv_layer + i] << endl;
     }
    milp_solver(lut, num_conv_layer, num_lfc_layer, num_ops_per_layer, res_model_lfc, res_model_conv);
 #endif
@@ -98,8 +98,8 @@ int main()
     }
     
     for(i = 0; i < num_lfc_layer; i++) {
-        num_ops_per_layer[num_conv_layer + i] = lfc_net[i].matW * lfc_net[i].matH;
-        cout << " num_ops " << i << "  " << num_ops_per_layer[num_conv_layer + i] << endl;
+        num_ops_per_layer[num_conv_layer + i] = 2 * lfc_net[i].matW * lfc_net[i].matH;
+        cout << " num_ops " << num_conv_layer + i << "  " << num_ops_per_layer[num_conv_layer + i] << endl;
     }
 
     milp_solver(lut, num_conv_layer, num_lfc_layer, num_ops_per_layer, res_model_lfc, res_model_conv);
