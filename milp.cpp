@@ -126,7 +126,7 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
          func: beta_tau[i][0] 
      ***************************************************************************/
         GRBVar2DArray beta_tau(num_conv_layer + num_lfc_layer);
-#ifdef FIRST_CUT
+#if defined(FIRST_CUT) || defined(FULL)
         GRBVarArray beta_first(SIMD_EXP * PE_EXP);
         beta_tau[0] = beta_first;
         for(k = 0; k < SIMD_EXP * PE_EXP; k++)
@@ -323,16 +323,17 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
    /**********************************************************************
         Constr 1.6: similar to constraint 1.5 but for simd
     **********************************************************************/
-#ifdef FIRST_CUT        
+#if defined(FIRST_CUT) || defined(FULL)        
     GRBLinExpr exp5, exp6;
     for(j = 0; j < SIMD_EXP; j++) {    
         exp6 += 3 * (j+1) * beta_simd[0][j];
         exp5 += beta_simd[0][j];
     }       
-    
-    model.addConstr(simd[0] == exp6, "125");     
-    model.addConstr(exp5 == 1, "126");
  
+    //Make simd[0] always 0   
+//    model.addConstr(simd[0] == exp6, "125");     
+    model.addConstr(exp5 == 1, "126");
+    model.addConstr(simd[0] == 3);
     for(i = 1; i < num_conv_layer + num_lfc_layer; i++) {
         GRBLinExpr exp5, exp6;
         for(j = 0; j < SIMD_EXP; j++) {
@@ -357,7 +358,7 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
    /**********************************************************************
         Constr 1.7: similar to constr 1.5 but for tau
     **********************************************************************/
-#ifdef FIRST_CUT
+#if defined(FIRST_CUT) || defined(FULL)
     GRBLinExpr exp7, exp8;
     for(i = 0; i < SIMD_EXP; i++) { 
         for(j = 0; j < PE_EXP; j++) {
@@ -392,7 +393,7 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
     /**********************************************************************
         Constr 1.8: latency constraint
     **********************************************************************/
-#ifdef FIRST_CUT
+#if defined(FIRST_CUT) || defined(FULL)
     for(j = 0; j < SIMD_EXP; j++) {
             model.addConstr(tau[0] >= 3 * (j+1) * pe[0] - (1 - beta_simd[0][j]) * BIG_M, "171");
             model.addConstr(3 * (j+1) * pe[0] >= tau[0] - (1 - beta_simd[0][j]) * BIG_M, "181");
@@ -416,7 +417,7 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
 #endif
 
 
-#ifdef FIRST_CUT    
+#if defined(FIRST_CUT) || defined(FULL)
     for(i=0; i < SIMD_EXP; i++){
        for(j = 0; j < PE_EXP; j++) {
          model.addConstr((num_ops_per_layer[0] / (3 * (i+1) * pow(2, j+1))) >=  layer_lat[0] - (1 - beta_tau[0][i * SIMD_EXP + j]) * BIG_M, "19");
@@ -516,7 +517,7 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
     }
     
     cout << endl;
-#ifdef FIRST_CUT 
+#if defined(FIRST_CUT) || defined(FULL)
     cout<< "PE * SIMD \t" << tau[0].get(GRB_DoubleAttr_X); 
     for(i = 0; i < SIMD_EXP; i++) {
         for(j = 0; j < PE_EXP; j++)
