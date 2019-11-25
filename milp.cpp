@@ -561,7 +561,7 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
     total_lat_clock_cycles += (BATCH_SIZE - 1) * max_lat.get(GRB_DoubleAttr_X);
 
     //total_latency in ms
-    total_latency = (float) (total_lat_clock_cycles) / 100000;
+    total_latency = (float) (total_lat_clock_cycles / 2) / 100000;
     cout<< "the maximum latency is "<< max_lat.get(GRB_DoubleAttr_X) <<endl;
     cout<< "total latency in clock cycles is "<< total_lat_clock_cycles <<endl;
     cout<< "total latency in ms is "<< total_latency <<endl;
