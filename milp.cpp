@@ -327,6 +327,7 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
     GRBLinExpr exp5, exp6;
     for(j = 0; j < SIMD_EXP; j++) {    
         exp6 += 3 * (j+1) * beta_simd[0][j];
+        exp6 += 3 * 1 * beta_simd[0][j];
         exp5 += beta_simd[0][j];
     }       
  
@@ -362,7 +363,8 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
     GRBLinExpr exp7, exp8;
     for(i = 0; i < SIMD_EXP; i++) { 
         for(j = 0; j < PE_EXP; j++) {
-            exp8 += 3 * (i+1) * pow(2, j+1) * beta_tau[0][i * SIMD_EXP + j];
+            //exp8 += 3 * (i+1) * pow(2, j+1) * beta_tau[0][i * SIMD_EXP + j];
+            exp8 += 3 * 1 * pow(2, j+1) * beta_tau[0][i * SIMD_EXP + j];
             exp7 += beta_tau[0][i * SIMD_EXP + j];    
         }
     }
@@ -395,8 +397,10 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
     **********************************************************************/
 #if defined(FIRST_CUT) || defined(FULL)
     for(j = 0; j < SIMD_EXP; j++) {
-            model.addConstr(tau[0] >= 3 * (j+1) * pe[0] - (1 - beta_simd[0][j]) * BIG_M, "171");
-            model.addConstr(3 * (j+1) * pe[0] >= tau[0] - (1 - beta_simd[0][j]) * BIG_M, "181");
+            //model.addConstr(tau[0] >= 3 * (j+1) * pe[0] - (1 - beta_simd[0][j]) * BIG_M, "171");
+            model.addConstr(tau[0] >= 3 * 1 * pe[0] - (1 - beta_simd[0][j]) * BIG_M, "171");
+            //model.addConstr(3 * (j+1) * pe[0] >= tau[0] - (1 - beta_simd[0][j]) * BIG_M, "181");
+            model.addConstr(3 * 1 * pe[0] >= tau[0] - (1 - beta_simd[0][j]) * BIG_M, "181");
         }
     for(i = 1; i < num_conv_layer + num_lfc_layer; i++) {
         for(j = 0; j < SIMD_EXP; j++) {
@@ -420,8 +424,10 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
 #if defined(FIRST_CUT) || defined(FULL)
     for(i=0; i < SIMD_EXP; i++){
        for(j = 0; j < PE_EXP; j++) {
-         model.addConstr((num_ops_per_layer[0] / (3 * (i+1) * pow(2, j+1))) >=  layer_lat[0] - (1 - beta_tau[0][i * SIMD_EXP + j]) * BIG_M, "19");
-         model.addConstr(layer_lat[0]  >= (num_ops_per_layer[0] / (3 * (i + 1) * pow(2, j+1))) - (1 - beta_tau[0][i * SIMD_EXP + j]) * BIG_M, "20");
+         //model.addConstr((num_ops_per_layer[0] / (3 * (i+1) * pow(2, j+1))) >=  layer_lat[0] - (1 - beta_tau[0][i * SIMD_EXP + j]) * BIG_M, "19");
+         model.addConstr((num_ops_per_layer[0] / (3 * 1 * pow(2, j+1))) >=  layer_lat[0] - (1 - beta_tau[0][i * SIMD_EXP + j]) * BIG_M, "19");
+         //model.addConstr(layer_lat[0]  >= (num_ops_per_layer[0] / (3 * (i + 1) * pow(2, j+1))) - (1 - beta_tau[0][i * SIMD_EXP + j]) * BIG_M, "20");
+         model.addConstr(layer_lat[0]  >= (num_ops_per_layer[0] / (3 * 1 * pow(2, j+1))) - (1 - beta_tau[0][i * SIMD_EXP + j]) * BIG_M, "20");
         }
     }
     
