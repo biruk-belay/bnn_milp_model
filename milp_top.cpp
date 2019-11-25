@@ -31,9 +31,13 @@ int main()
 */
     model_variables res_model_lfc[NUM_QUADRANTS] = {{20.92, 6.39, 1233.5}, {55.2, 10.15, 900.2},
                                                 {13.853, 60.9, 876}, {66.19, 54.18, -1317.8}};
-
+/*
     model_variables res_model_conv[NUM_QUADRANTS] = {{39.76, 9.69, 2244}, {96.13, 19.79, 1552},
                                                 {19.79, 96.13, 1552}, {121.4, 90.26, -1674}};
+*/
+    model_variables res_model_conv[NUM_QUADRANTS] = {{26.64, 20.19, 1313}, {96.67, 19.79, 645.4},
+                                                {38.64, 185.8, -845.8}, {151.5, 117.8, -5177}};
+
 
 #ifdef FIRST_CUT
     const unsigned int num_conv_layer   = 3;
