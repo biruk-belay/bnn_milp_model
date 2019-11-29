@@ -21,8 +21,8 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
     int i, j, k;
     int status;
 
-    unsigned int pe_threshold = 16; 
-    unsigned int simd_threshold = 16; 
+    unsigned int pe_th = 16; 
+    unsigned int simd_th = 16; 
     unsigned long long BIG_M = 10000000000000; //represents infinity
     double episilon = 0.1;
  
@@ -33,65 +33,70 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
         GRBModel model = GRBModel(env);
 
     /**********************************************************************
-         name: pe
+         name: P
          type: integer
-         func: pe[i] represent the PE in each layer
+         func: P[i] represent the PE in each layer
      ***********************************************************************/    
-    GRBVarArray pe(num_conv_layer + num_lfc_layer);
+    GRBVarArray P(num_conv_layer + num_lfc_layer);
     for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
-        pe[i] = model.addVar(2.0, PE_MAX, 0.0, GRB_INTEGER);
+        P[i] = model.addVar(2.0, PE_MAX, 0.0, GRB_INTEGER);
     }
 
     /**********************************************************************
-        name: simd
+        name: S
          type: integer
-         func: simd[i] represent the simd in each neuron on a single layer
+         func: S[i] represent the simd in each neuron on a single layer
     ***********************************************************************/
 
-    GRBVarArray simd(num_conv_layer + num_lfc_layer);
+    GRBVarArray S(num_conv_layer + num_lfc_layer);
     for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
-        simd[i] = model.addVar(2.0, SIMD_MAX, 0.0, GRB_INTEGER);
+        S[i] = model.addVar(2.0, SIMD_MAX, 0.0, GRB_INTEGER);
     }
 
     /**************************************************************************
          name: alpha
          type: binary
-         func: alpha[i][0] and alpha[i][1] are used for determining the model to 
-               choose to calculate the resource consumption. In this implementation 
-               they represent the quadrants of the resource model to choose from.   
+         func: alpha[i] is used to choose the interval of P 
      ***************************************************************************/
-    GRBVar2DArray alpha (num_conv_layer + num_lfc_layer);
+    GRBVarArray alpha (num_conv_layer + num_lfc_layer);
         for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
-            GRBVarArray each_alpha(2);
-            alpha[i] = each_alpha;
-            for(k = 0; k < 2; k++)
-                alpha[i][k] = model.addVar(0.0,  1.0, 0.0, GRB_INTEGER);
+            alpha[i] = model.addVar(0.0,  1.0, 0.0, GRB_INTEGER);
+         }
+
+    /**************************************************************************
+         name: gamma
+         type: binary
+         func: gamma[i] is used to choose the interval of S   
+     ***************************************************************************/
+    GRBVarArray gamma (num_conv_layer + num_lfc_layer);
+        for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
+            gamma[i] = model.addVar(0.0,  1.0, 0.0, GRB_INTEGER);
          }
 
      /**************************************************************************
-         name: beta_pe
+         name: beta
          type: binary
-         func: beta_pe[i][0] and beta_pe[i][1]
+         func: beta[i][j] is used to constrain P_i to multiples 2^x
      ***************************************************************************/
-    GRBVar2DArray beta_pe (num_conv_layer + num_lfc_layer);
+    GRBVar2DArray beta(num_conv_layer + num_lfc_layer);
         for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
             GRBVarArray each_alpha(PE_MAX);
-            beta_pe[i] = each_alpha;
+            beta[i] = each_alpha;
             for(k = 0; k < PE_MAX; k++)
-                beta_pe[i][k] = model.addVar(0.0,  1.0, 0.0, GRB_BINARY);
+                beta[i][k] = model.addVar(0.0,  1.0, 0.0, GRB_BINARY);
          }
 
      /**************************************************************************
-         name: beta_simd
+         name: delta
          type: binary
-         func: beta_simd[i][0] and beta_simd[i][1]
+         func: delta[i][j] is used to constrain S_i to multiples of 2^x
      ***************************************************************************/
-    GRBVar2DArray beta_simd(num_conv_layer + num_lfc_layer);
+    GRBVar2DArray delta(num_conv_layer + num_lfc_layer);
         for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
             GRBVarArray each_alpha(SIMD_MAX);
-            beta_simd[i] = each_alpha;
+            delta[i] = each_alpha;
             for(k = 0; k < SIMD_MAX; k++)
-                beta_simd[i][k] = model.addVar(0.0,  1.0, 0.0, GRB_BINARY);
+                delta[i][k] = model.addVar(0.0,  1.0, 0.0, GRB_BINARY);
          }
     /**********************************************************************
          name: lat
@@ -121,29 +126,29 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
     }
 
     /**************************************************************************
-         name: beta_tau
+         name: lamda
          type: binary
-         func: beta_tau[i][0] 
+         func: lambda[i][0] is used to constrain tau_i to multiples of 2^x 
      ***************************************************************************/
-        GRBVar2DArray beta_tau(num_conv_layer + num_lfc_layer);
+        GRBVar2DArray lambda(num_conv_layer + num_lfc_layer);
 #if defined(FIRST_CUT) || defined(FULL)
         GRBVarArray beta_first(SIMD_EXP * PE_EXP);
-        beta_tau[0] = beta_first;
+        lambda[0] = beta_first;
         for(k = 0; k < SIMD_EXP * PE_EXP; k++)
-            beta_tau[0][k] = model.addVar(0.0,  1.0, 0.0, GRB_BINARY);
+            lambda[0][k] = model.addVar(0.0,  1.0, 0.0, GRB_BINARY);
         
         for(i = 1; i < num_conv_layer + num_lfc_layer; i++) {
             GRBVarArray each_alpha(SIMD_EXP + PE_EXP);
-            beta_tau[i] = each_alpha;
+            lambda[i] = each_alpha;
             for(k = 0; k < (SIMD_EXP + PE_EXP); k++)
-                beta_tau[i][k] = model.addVar(0.0,  1.0, 0.0, GRB_BINARY); 
+                lambda[i][k] = model.addVar(0.0,  1.0, 0.0, GRB_BINARY); 
         }
 #else
         for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
             GRBVarArray each_alpha(SIMD_EXP + PE_EXP);
-            beta_tau[i] = each_alpha;
+            lambda[i] = each_alpha;
             for(k = 0; k < (SIMD_EXP + PE_EXP); k++)
-                beta_tau[i][k] = model.addVar(0.0,  1.0, 0.0, GRB_BINARY); 
+                lambda[i][k] = model.addVar(0.0,  1.0, 0.0, GRB_BINARY); 
         }
 #endif
     /**************************************************************************
@@ -166,20 +171,20 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
 
     model.update();
     /****************************************************************************
-    Constr 1.1: alpha[][0] == 0 iff pe < pe_threshold else alpha[][0] == 1
-                alpha[][1] == 0 iff simd < pe_threshold else alpha[][1] == 1
+    Constr 1.1: alpha[][0] == 0 iff pe < pe_th else alpha[][0] == 1
+                alpha[][1] == 0 iff simd < pe_th else alpha[][1] == 1
 
                 alpha[][0] and alpha[][1] are used to decide which model to use
                 to calculate the resource consumption
     ****************************************************************************/
     for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
-        model.addConstr(pe[i] - episilon >= pe_threshold - BIG_M * (1 - alpha[i][0]), "1");
-        model.addConstr(pe[i] - episilon <= pe_threshold + BIG_M * alpha[i][0], "2");
+        model.addConstr(P[i] - episilon >= pe_th - BIG_M * (1 - alpha[i]), "1");
+        model.addConstr(P[i] - episilon <= pe_th + BIG_M * alpha[i], "2");
     }
     
     for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
-        model.addConstr(simd[i] - episilon >= simd_threshold - BIG_M * (1 - alpha[i][1]), "3");
-        model.addConstr(simd[i] - episilon <= simd_threshold + BIG_M * alpha[i][1], "4");
+        model.addConstr(S[i] - episilon >= simd_th - BIG_M * (1 - gamma[i]), "3");
+        model.addConstr(S[i] - episilon <= simd_th + BIG_M * gamma[i], "4");
     }
         
     /******************************************************************
@@ -189,49 +194,49 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
     ******************************************************************/
     GRBLinExpr exp;
         for(i = 0; i < num_conv_layer; i++) {
-        model.addConstr(lut[i] >= res_model_conv[0].pe_coeff   * pe[i]   +
-                                  res_model_conv[0].simd_coeff * simd[i] +
+        model.addConstr(lut[i] >= res_model_conv[0].pe_coeff   * P[i]   +
+                                  res_model_conv[0].simd_coeff * S[i] +
                                   res_model_conv[0].intercept -
-                                  ((alpha[i][0] + alpha[i][1]) * BIG_M), "5");
+                                  ((alpha[i] + gamma[i]) * BIG_M), "5");
 
-        model.addConstr(lut[i] >= res_model_conv[1].pe_coeff   * pe[i]   +
-                                  res_model_conv[1].simd_coeff * simd[i] +
+        model.addConstr(lut[i] >= res_model_conv[1].pe_coeff   * P[i]   +
+                                  res_model_conv[1].simd_coeff * S[i] +
                                   res_model_conv[1].intercept -
-                                  ((1 - alpha[i][0] + alpha[i][1]) * BIG_M), "6");
+                                  ((1 - alpha[i] + gamma[i]) * BIG_M), "6");
 
-        model.addConstr(lut[i] >= res_model_conv[2].pe_coeff   * pe[i]   +
-                                  res_model_conv[2].simd_coeff * simd[i] +
+        model.addConstr(lut[i] >= res_model_conv[2].pe_coeff   * P[i]   +
+                                  res_model_conv[2].simd_coeff * S[i] +
                                   res_model_conv[2].intercept -
-                                  ((1 + alpha[i][0] - alpha[i][1]) * BIG_M), "7");
+                                  ((1 + alpha[i] - gamma[i]) * BIG_M), "7");
 
-        model.addConstr(lut[i] >= res_model_conv[3].pe_coeff   * pe[i]   +
-                                  res_model_conv[3].simd_coeff * simd[i] +
+        model.addConstr(lut[i] >= res_model_conv[3].pe_coeff   * P[i]   +
+                                  res_model_conv[3].simd_coeff * S[i] +
                                   res_model_conv[3].intercept -
-                                  ((2 - alpha[i][0] - alpha[i][1]) * BIG_M), "8");
+                                  ((2 - alpha[i] - gamma[i]) * BIG_M), "8");
 
     }
 
 
     for(i = num_conv_layer; i < num_lfc_layer + num_conv_layer; i++) {
-        model.addConstr(lut[i] >= res_model_lfc[0].pe_coeff   * pe[i]   +
-                                  res_model_lfc[0].simd_coeff * simd[i] + 
+        model.addConstr(lut[i] >= res_model_lfc[0].pe_coeff   * P[i]   +
+                                  res_model_lfc[0].simd_coeff * S[i] + 
                                   res_model_lfc[0].intercept -
-                                  (alpha[i][0] + alpha[i][1]) * BIG_M, "4");
+                                  (alpha[i] + gamma[i]) * BIG_M, "4");
         
-        model.addConstr(lut[i] >= res_model_lfc[1].pe_coeff   * pe[i]   +
-                                  res_model_lfc[1].simd_coeff * simd[i] + 
+        model.addConstr(lut[i] >= res_model_lfc[1].pe_coeff   * P[i]   +
+                                  res_model_lfc[1].simd_coeff * S[i] + 
                                   res_model_lfc[1].intercept -
-                                  (1 - alpha[i][0] + alpha[i][1]) * BIG_M, "5");
+                                  (1 - alpha[i] + gamma[i]) * BIG_M, "5");
         
-        model.addConstr(lut[i] >= res_model_lfc[2].pe_coeff   * pe[i]   +
-                                  res_model_lfc[2].simd_coeff * simd[i] +
+        model.addConstr(lut[i] >= res_model_lfc[2].pe_coeff   * P[i]   +
+                                  res_model_lfc[2].simd_coeff * S[i] +
                                   res_model_lfc[2].intercept -
-                                  (1 + alpha[i][0] - alpha[i][1]) * BIG_M, "6");
+                                  (1 + alpha[i] - gamma[i]) * BIG_M, "6");
 
-        model.addConstr(lut[i] >= res_model_lfc[3].pe_coeff   * pe[i]   +
-                                  res_model_lfc[3].simd_coeff * simd[i] +
+        model.addConstr(lut[i] >= res_model_lfc[3].pe_coeff   * P[i]   +
+                                  res_model_lfc[3].simd_coeff * S[i] +
                                   res_model_lfc[3].intercept -
-                                  (2 - alpha[i][0] - alpha[i][1]) * BIG_M, "7");
+                                  (2 - alpha[i] - gamma[i]) * BIG_M, "7");
     
     }
     
@@ -241,49 +246,49 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
     ******************************************************************/
 
     for(i = 0; i < num_conv_layer; i++) {
-        model.addConstr((res_model_conv[0].pe_coeff  *  pe[i]   +
-                        res_model_conv[0].simd_coeff *  simd[i] + 
+        model.addConstr((res_model_conv[0].pe_coeff  *  P[i]   +
+                        res_model_conv[0].simd_coeff *  S[i] + 
                         res_model_conv[0].intercept)  >= (lut[i]  - 
-                        ((alpha[i][0] + alpha[i][1]) * BIG_M)), "9");
+                        ((alpha[i] + gamma[i]) * BIG_M)), "9");
         
-        model.addConstr((res_model_conv[1].pe_coeff  * pe[i]    +
-                        res_model_conv[1].simd_coeff * simd[i]  + 
+        model.addConstr((res_model_conv[1].pe_coeff  * P[i]    +
+                        res_model_conv[1].simd_coeff * S[i]  + 
                         res_model_conv[1].intercept) >= (lut[i]   -
-                        (1 - alpha[i][0] + alpha[i][1]) * BIG_M), "10");
+                        (1 - alpha[i] + gamma[i]) * BIG_M), "10");
         
-        model.addConstr((res_model_conv[2].pe_coeff  * pe[i]    +
-                        res_model_conv[2].simd_coeff * simd[i]  +
-                        res_model_conv[2].intercept)  >= (lut[i]  - 
-                                  ((1 + alpha[i][0] - alpha[i][1]) * BIG_M)), "11");
+        model.addConstr((res_model_conv[2].pe_coeff  * P[i]    +
+                        res_model_conv[2].simd_coeff * S[i]  +
+                        res_model_conv[2].intercept)  >= (lut[i]  -      
+                            ((1 + alpha[i] - gamma[i]) * BIG_M)), "11");
 
-        model.addConstr((res_model_conv[3].pe_coeff  * pe[i]   +
-                        res_model_conv[3].simd_coeff * simd[i] +
+        model.addConstr((res_model_conv[3].pe_coeff  * P[i]   +
+                        res_model_conv[3].simd_coeff * S[i] +
                         res_model_conv[3].intercept) >= (lut[i]  -
-                        ((2 - alpha[i][0] - alpha[i][1]) * BIG_M)), "12");
+                        ((2 - alpha[i] - gamma[i]) * BIG_M)), "12");
    
     }
      
 
     for(i = num_conv_layer; i < num_lfc_layer + num_conv_layer; i++) {
-        model.addConstr(res_model_lfc[0].pe_coeff   *  pe[i]   +
-                        res_model_lfc[0].simd_coeff *  simd[i] + 
+        model.addConstr(res_model_lfc[0].pe_coeff   *  P[i]   +
+                        res_model_lfc[0].simd_coeff *  S[i] + 
                         res_model_lfc[0].intercept  >= lut[i]  - 
-                        (alpha[i][0] + alpha[i][1]) * BIG_M, "9");
+                        (alpha[i] + gamma[i]) * BIG_M, "9");
         
-        model.addConstr(res_model_lfc[1].pe_coeff   * pe[i]    +
-                        res_model_lfc[1].simd_coeff * simd[i]  + 
+        model.addConstr(res_model_lfc[1].pe_coeff   * P[i]    +
+                        res_model_lfc[1].simd_coeff * S[i]  + 
                         res_model_lfc[1].intercept >= lut[i]   -
-                        (1 - alpha[i][0] + alpha[i][1]) * BIG_M, "10");
+                        (1 - alpha[i] + gamma[i]) * BIG_M, "10");
         
-        model.addConstr(res_model_lfc[2].pe_coeff   * pe[i]    +
-                        res_model_lfc[2].simd_coeff * simd[i]  +
+        model.addConstr(res_model_lfc[2].pe_coeff   * P[i]    +
+                        res_model_lfc[2].simd_coeff * S[i]  +
                         res_model_lfc[2].intercept  >= lut[i]  - 
-                                  (1 + alpha[i][0] - alpha[i][1]) * BIG_M, "11");
+                                  (1 + alpha[i] - gamma[i]) * BIG_M, "11");
 
-        model.addConstr(res_model_lfc[3].pe_coeff   * pe[i]   +
-                        res_model_lfc[3].simd_coeff * simd[i] +
+        model.addConstr(res_model_lfc[3].pe_coeff   * P[i]   +
+                        res_model_lfc[3].simd_coeff * S[i] +
                         res_model_lfc[3].intercept >= lut[i]  -
-                        (2 - alpha[i][0] - alpha[i][1]) * BIG_M, "12");
+                        (2 - alpha[i] - gamma[i]) * BIG_M, "12");
     
     }
   
@@ -313,10 +318,10 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
     for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
         GRBLinExpr exp1, exp2;
         for(j = 0; j < PE_EXP; j++) {
-            exp2 += pow(2, j+1) * beta_pe[i][j];
-            exp1 += beta_pe[i][j];
+            exp2 += pow(2, j+1) * beta[i][j];
+            exp1 += beta[i][j];
         }
-            model.addConstr(pe[i] == exp2, "15");
+            model.addConstr(P[i] == exp2, "15");
             model.addConstr(exp1 == 1, "16");
     }
 
@@ -326,32 +331,32 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
 #if defined(FIRST_CUT) || defined(FULL)        
     GRBLinExpr exp5, exp6;
     for(j = 0; j < SIMD_EXP; j++) {    
-        exp6 += 3 * (j+1) * beta_simd[0][j];
-        exp6 += 3 * 1 * beta_simd[0][j];
-        exp5 += beta_simd[0][j];
+        exp6 += 3 * (j+1) * delta[0][j];
+        exp6 += 3 * 1 * delta[0][j];
+        exp5 += delta[0][j];
     }       
  
     //Make simd[0] always 0   
 //    model.addConstr(simd[0] == exp6, "125");     
     model.addConstr(exp5 == 1, "126");
-    model.addConstr(simd[0] == 3);
+    model.addConstr(S[0] == 3);
     for(i = 1; i < num_conv_layer + num_lfc_layer; i++) {
         GRBLinExpr exp5, exp6;
         for(j = 0; j < SIMD_EXP; j++) {
-            exp6 += pow(2, j+1) * beta_simd[i][j];
-            exp5 += beta_simd[i][j];
+            exp6 += pow(2, j+1) * delta[i][j];
+            exp5 += delta[i][j];
         }
-            model.addConstr(simd[i] == exp6, "127");
+            model.addConstr(S[i] == exp6, "127");
             model.addConstr(exp5 == 1, "128");
     }
 #else
     for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
         GRBLinExpr exp5, exp6;
         for(j = 0; j < SIMD_EXP; j++) {
-            exp6 += pow(2, j+1) * beta_simd[i][j];
-            exp5 += beta_simd[i][j];
+            exp6 += pow(2, j+1) * delta[i][j];
+            exp5 += delta[i][j];
         }
-            model.addConstr(simd[i] == exp6, "155");
+            model.addConstr(S[i] == exp6, "155");
             model.addConstr(exp5 == 1, "166");
     }
 #endif
@@ -364,8 +369,8 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
     for(i = 0; i < SIMD_EXP; i++) { 
         for(j = 0; j < PE_EXP; j++) {
             //exp8 += 3 * (i+1) * pow(2, j+1) * beta_tau[0][i * SIMD_EXP + j];
-            exp8 += 3 * 1 * pow(2, j+1) * beta_tau[0][i * SIMD_EXP + j];
-            exp7 += beta_tau[0][i * SIMD_EXP + j];    
+            exp8 += 3 * 1 * pow(2, j+1) * lambda[0][i * SIMD_EXP + j];
+            exp7 += lambda[0][i * SIMD_EXP + j];    
         }
     }
     model.addConstr(tau[0] == exp8, "156");    
@@ -374,8 +379,8 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
     for(i = 1; i < num_conv_layer + num_lfc_layer; i++) {
         GRBLinExpr exp5, exp6;
         for(j = 0; j < SIMD_EXP + PE_EXP; j++) {
-            exp6 += pow(2, j+1) * beta_tau[i][j];
-            exp5 += beta_tau[i][j];
+            exp6 += pow(2, j+1) * lambda[i][j];
+            exp5 += lambda[i][j];
         }
             model.addConstr(tau[i] == exp6, "156");
             model.addConstr(exp5 == 1, "165");
@@ -385,8 +390,8 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
     for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
         GRBLinExpr exp5, exp6;
         for(j = 0; j < SIMD_EXP + PE_EXP; j++) {
-            exp6 += pow(2, j+1) * beta_tau[i][j];
-            exp5 += beta_tau[i][j];
+            exp6 += pow(2, j+1) * lambda[i][j];
+            exp5 += lambda[i][j];
         }
             model.addConstr(tau[i] == exp6, "156");
             model.addConstr(exp5 == 1, "165");
@@ -398,14 +403,14 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
 #if defined(FIRST_CUT) || defined(FULL)
     for(j = 0; j < SIMD_EXP; j++) {
             //model.addConstr(tau[0] >= 3 * (j+1) * pe[0] - (1 - beta_simd[0][j]) * BIG_M, "171");
-            model.addConstr(tau[0] >= 3 * 1 * pe[0] - (1 - beta_simd[0][j]) * BIG_M, "171");
+            model.addConstr(tau[0] >= 3 * 1 * P[0] - (1 - delta[0][j]) * BIG_M, "171");
             //model.addConstr(3 * (j+1) * pe[0] >= tau[0] - (1 - beta_simd[0][j]) * BIG_M, "181");
-            model.addConstr(3 * 1 * pe[0] >= tau[0] - (1 - beta_simd[0][j]) * BIG_M, "181");
+            model.addConstr(3 * 1 * P[0] >= tau[0] - (1 - delta[0][j]) * BIG_M, "181");
         }
     for(i = 1; i < num_conv_layer + num_lfc_layer; i++) {
         for(j = 0; j < SIMD_EXP; j++) {
-            model.addConstr(tau[i] >= pow(2, j+1) * pe[i] - (1 - beta_simd[i][j]) * BIG_M, "172");
-            model.addConstr(pow(2, j+1) * pe[i] >= tau[i] - (1 - beta_simd[i][j]) * BIG_M, "182");
+            model.addConstr(tau[i] >= pow(2, j+1) * P[i] - (1 - delta[i][j]) * BIG_M, "172");
+            model.addConstr(pow(2, j+1) * P[i] >= tau[i] - (1 - delta[i][j]) * BIG_M, "182");
         }
        //exp3 += tau[i];
     }
@@ -413,8 +418,8 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
 #else
     for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
         for(j = 0; j < SIMD_EXP; j++) {
-            model.addConstr(tau[i] >= pow(2, j+1) * pe[i] - (1 - beta_simd[i][j]) * BIG_M, "173");
-            model.addConstr(pow(2, j+1) * pe[i] >= tau[i] - (1 - beta_simd[i][j]) * BIG_M, "184");
+            model.addConstr(tau[i] >= pow(2, j+1) * P[i] - (1 - delta[i][j]) * BIG_M, "173");
+            model.addConstr(pow(2, j+1) * P[i] >= tau[i] - (1 - delta[i][j]) * BIG_M, "184");
         }
        //exp3 += tau[i];
     }
@@ -425,37 +430,37 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
     for(i=0; i < SIMD_EXP; i++){
        for(j = 0; j < PE_EXP; j++) {
          //model.addConstr((num_ops_per_layer[0] / (3 * (i+1) * pow(2, j+1))) >=  layer_lat[0] - (1 - beta_tau[0][i * SIMD_EXP + j]) * BIG_M, "19");
-         model.addConstr((num_ops_per_layer[0] / (3 * 1 * pow(2, j+1))) >=  layer_lat[0] - (1 - beta_tau[0][i * SIMD_EXP + j]) * BIG_M, "19");
+         model.addConstr((num_ops_per_layer[0] / (3 * pow(2, j+1))) >=  layer_lat[0] - (1 - lambda[0][i * SIMD_EXP + j]) * BIG_M, "19");
          //model.addConstr(layer_lat[0]  >= (num_ops_per_layer[0] / (3 * (i + 1) * pow(2, j+1))) - (1 - beta_tau[0][i * SIMD_EXP + j]) * BIG_M, "20");
-         model.addConstr(layer_lat[0]  >= (num_ops_per_layer[0] / (3 * 1 * pow(2, j+1))) - (1 - beta_tau[0][i * SIMD_EXP + j]) * BIG_M, "20");
+         model.addConstr(layer_lat[0]  >= (num_ops_per_layer[0] / (3 * 1 * pow(2, j+1))) - (1 - lambda[0][i * SIMD_EXP + j]) * BIG_M, "20");
         }
     }
     
     for(i = 1; i < num_conv_layer; i++) {
        for(j = 0; j < SIMD_EXP + PE_EXP; j++) {
-          model.addConstr((num_ops_per_layer[i] / pow(2, j+1)) >=  layer_lat[i] - (1 - beta_tau[i][j]) * BIG_M, "19");
-          model.addConstr(layer_lat[i]  >= (num_ops_per_layer[i] / pow(2, j+1)) - (1 - beta_tau[i][j]) * BIG_M, "20");
+          model.addConstr((num_ops_per_layer[i] / pow(2, j+1)) >=  layer_lat[i] - (1 - lambda[i][j]) * BIG_M, "19");
+          model.addConstr(layer_lat[i]  >= (num_ops_per_layer[i] / pow(2, j+1)) - (1 - lambda[i][j]) * BIG_M, "20");
        }
     }
 
     for(i = num_conv_layer; i < num_conv_layer + num_lfc_layer; i++) {
         for(j = 0; j < SIMD_EXP + PE_EXP; j++) {
-            model.addConstr((num_ops_per_layer[i] / pow(2, j+1)) >=  layer_lat[i] - (1 - beta_tau[i][j]) * BIG_M, "21");
-            model.addConstr(layer_lat[i] >= (num_ops_per_layer[i] / pow(2, j+1))- (1 - beta_tau[i][j]) * BIG_M, "22");
+            model.addConstr((num_ops_per_layer[i] / pow(2, j+1)) >=  layer_lat[i] - (1 - lambda[i][j]) * BIG_M, "21");
+            model.addConstr(layer_lat[i] >= (num_ops_per_layer[i] / pow(2, j+1))- (1 - lambda[i][j]) * BIG_M, "22");
         }
     }
 #else
     for(i = 0; i < num_conv_layer; i++) {
         for(j = 0; j < SIMD_EXP + PE_EXP; j++) {
-            model.addConstr((num_ops_per_layer[i] / pow(2, j+1)) >=  layer_lat[i] - (1 - beta_tau[i][j]) * BIG_M, "19");
-            model.addConstr(layer_lat[i]  >= (num_ops_per_layer[i] / pow(2, j+1)) - (1 - beta_tau[i][j]) * BIG_M, "20");
+            model.addConstr((num_ops_per_layer[i] / pow(2, j+1)) >=  layer_lat[i] - (1 - lambda[i][j]) * BIG_M, "19");
+            model.addConstr(layer_lat[i]  >= (num_ops_per_layer[i] / pow(2, j+1)) - (1 - lambda[i][j]) * BIG_M, "20");
         }
     }
 
     for(i = num_conv_layer; i < num_conv_layer + num_lfc_layer; i++) {
         for(j = 0; j < SIMD_EXP + PE_EXP; j++) {
-            model.addConstr((num_ops_per_layer[i] / pow(2, j+1)) >=  layer_lat[i] - (1 - beta_tau[i][j]) * BIG_M, "21");
-            model.addConstr(layer_lat[i] >= (num_ops_per_layer[i] / pow(2, j+1))- (1 - beta_tau[i][j]) * BIG_M, "22");
+            model.addConstr((num_ops_per_layer[i] / pow(2, j+1)) >=  layer_lat[i] - (1 - lambda[i][j]) * BIG_M, "21");
+            model.addConstr(layer_lat[i] >= (num_ops_per_layer[i] / pow(2, j+1))- (1 - lambda[i][j]) * BIG_M, "22");
         }
     }
 #endif
@@ -495,8 +500,8 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
     int total_luts_used = 0;
     for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
         total_luts_used += lut[i].get(GRB_DoubleAttr_X);
-        cout << " pe " << pe[i].get(GRB_DoubleAttr_X) << "\tsimd " << simd[i].get(GRB_DoubleAttr_X) << 
-             "\t alpha " << alpha[i][0].get(GRB_DoubleAttr_X) << "\t" << alpha[i][1].get(GRB_DoubleAttr_X) << "\t lut " <<
+        cout << " pe " << P[i].get(GRB_DoubleAttr_X) << "\tsimd " << S[i].get(GRB_DoubleAttr_X) << 
+             "\t alpha " << alpha[i].get(GRB_DoubleAttr_X) << "\t" << gamma[i].get(GRB_DoubleAttr_X) << "\t lut " <<
               lut[i].get(GRB_DoubleAttr_X) << endl;
     }
 
@@ -504,21 +509,21 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
     
     cout << " total luts used " << total_luts_used << endl;
 
-    cout<< "beta_pe" <<endl;
+    cout<< "beta" <<endl;
     for(i = 0; i < num_conv_layer; i++){
         cout << "layer " << i << "\t";
         for(j = 0; j < PE_EXP; j++)
-            cout << "\t" << beta_pe[i][j].get(GRB_DoubleAttr_X);
+            cout << "\t" << beta[i][j].get(GRB_DoubleAttr_X);
         cout <<endl;
     }
     
-    cout<< "beta_simd" <<endl;
+    cout<< "delta" <<endl;
     int latency = 0;
     for(i = 0; i < num_conv_layer; i++){
         latency += tau[i].get(GRB_DoubleAttr_X);
         cout << "layer " << i << "\t";
         for(j = 0; j < SIMD_EXP; j++)
-            cout << "\t" << beta_simd[i][j].get(GRB_DoubleAttr_X);
+            cout << "\t" << delta[i][j].get(GRB_DoubleAttr_X);
         cout <<endl;
     }
     
@@ -527,13 +532,13 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
     cout<< "PE * SIMD \t" << tau[0].get(GRB_DoubleAttr_X); 
     for(i = 0; i < SIMD_EXP; i++) {
         for(j = 0; j < PE_EXP; j++)
-            cout << "\t" << beta_tau[0][i * SIMD_EXP + j].get(GRB_DoubleAttr_X);
+            cout << "\t" << lambda[0][i * SIMD_EXP + j].get(GRB_DoubleAttr_X);
     }
     cout <<endl;
     for(i = 1; i < num_conv_layer + num_lfc_layer; i++) {
         cout<< "PE * SIMD \t" << tau[i].get(GRB_DoubleAttr_X);
         for(j = 0; j < SIMD_EXP + PE_EXP; j++)
-            cout << "\t" << beta_tau[i][j].get(GRB_DoubleAttr_X);
+            cout << "\t" << lambda[i][j].get(GRB_DoubleAttr_X);
         cout <<endl;
     }
 
@@ -541,7 +546,7 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
     for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
         cout<< "PE * SIMD \t" << tau[i].get(GRB_DoubleAttr_X);
         for(j = 0; j < SIMD_EXP + PE_EXP; j++)
-            cout << "\t" << beta_tau[i][j].get(GRB_DoubleAttr_X);
+            cout << "\t" << lambda[i][j].get(GRB_DoubleAttr_X);
         cout <<endl;
     }
     cout <<endl;

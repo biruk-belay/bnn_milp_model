@@ -8,7 +8,7 @@ using namespace std;
 int main()
 {
     int i;
-    float percentage_of_resource_used = 0.43;
+    float percentage_of_resource_used = 0.13;
     unsigned int lut = TOT_LUT_PYNQ * percentage_of_resource_used;
     conv_ntwk_arch conv_net[] = {{32, 3, 30, 64, 3},
                                  {30, 64, 28, 64, 3},
@@ -40,7 +40,7 @@ int main()
 
 
 #ifdef FIRST_CUT
-    const unsigned int num_conv_layer   = 3;
+    const unsigned int num_conv_layer   = 4;
     const unsigned int num_lfc_layer    = 0; 
     unsigned int cut_layer = 0;
     unsigned long long int num_ops_per_layer[num_conv_layer + num_lfc_layer];
@@ -64,9 +64,9 @@ int main()
 #endif
 
 #ifdef SECOND_CUT
-    const unsigned int num_conv_layer   = 3;
+    const unsigned int num_conv_layer   = 2;
     const unsigned int num_lfc_layer    = 3;
-    unsigned int cut_layer = 3; 
+    unsigned int cut_layer = 4; 
     unsigned long long int num_ops_per_layer[num_conv_layer + num_lfc_layer];
     
     for(i = 0; i < num_conv_layer; i++) {
