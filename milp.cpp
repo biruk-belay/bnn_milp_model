@@ -169,6 +169,29 @@ int milp_solver(unsigned int num_lut, unsigned int num_conv_layer,
        GRBVar max_lat;
         max_lat = model.addVar(0.0, GRB_INFINITY, 0.0, GRB_CONTINUOUS);
 
+    /**************************************************************************
+         name: x
+         type: binary
+         func: x[i] is used to signify the cuts   
+     ***************************************************************************/
+    GRBVarArray x (num_conv_layer + num_lfc_layer);
+        for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
+            x[i] = model.addVar(0.0,  1.0, 0.0, GRB_BINARY);
+         }
+
+     /**************************************************************************
+         name: y
+         type: binary
+         func: y[i][j] = 1 if the i-th layer is in the j-th chunk
+     ***************************************************************************/
+    GRBVar2DArray y(num_conv_layer + num_lfc_layer);
+        for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
+            GRBVarArray each_alpha(num_conv_layer + num_lfc_layer);
+            y[i] = each_alpha;
+            for(k = 0; k < num_conv_layer + num_lfc_layer; k++)
+                y[i][k] = model.addVar(0.0,  1.0, 0.0, GRB_BINARY);
+         }
+
     model.update();
     /****************************************************************************
     Constr 1.1: alpha[][0] == 0 iff pe < pe_th else alpha[][0] == 1
