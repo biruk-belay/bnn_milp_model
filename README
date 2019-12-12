@@ -1,10 +1,17 @@
-compile using
+This implementation includes two models 
+    * milp.cpp -> The layer to be cut is not part of the optimization problem. In this implementation the LUTs are the only resources modeled.
+        compile using
 
-For the first cut
-g++ -DFIRST_CUT -o run milp.cpp milp_top.cpp -lgurobi_g++5.2 -lgurobi_c++ -lgurobi70
+        For the first cut
+        g++ -DFIRST_CUT -o run milp.cpp milp_top.cpp -lgurobi_g++5.2 -lgurobi_c++ -lgurobi70
 
-for the second cut
-g++ -DSECOND_CUT -o run milp.cpp milp_top.cpp -lgurobi_g++5.2 -lgurobi_c++ -lgurobi70
+        for the second cut
+        g++ -DSECOND_CUT -o run milp.cpp milp_top.cpp -lgurobi_g++5.2 -lgurobi_c++ -lgurobi70
 
-for the full network (without cuts)
-g++ -DFULL -o run milp.cpp milp_top.cpp -lgurobi_g++5.2 -lgurobi_c++ -lgurobi70
+        for the full network (without cuts)
+        g++ -DFULL -o run milp.cpp milp_top.cpp -lgurobi_g++5.2 -lgurobi_c++ -lgurobi70
+
+    * milp_new.cpp -> The layer to be cut is also part of the optimization problem. In this new implementation the bram utilization is also part of the model
+        
+        compile using
+        g++ -DFULL -o run milp.cpp milp_top.cpp -lgurobi_g++5.2 -lgurobi_c++ -lgurobi70
