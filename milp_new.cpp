@@ -325,18 +325,24 @@ int milp_solver(unsigned int num_lut, unsigned int num_bram, unsigned int num_co
 #if defined(FIRST_CUT) || defined(FULL)        
     GRBLinExpr exp5, exp6;
     for(j = 0; j < SIMD_EXP; j++) {    
+#ifdef LAYER_0_SIMD_UNRESOLVED
         //IF the S[0] issue is not resolved this constraint should be enabled
-        //exp6 += 3 * 1 * delta[0][j];
+        exp6 += 3 * 1 * delta[0][j];
+#else
         //else enable this constraint
         exp6 += 3 * (j+1) * delta[0][j];
+#endif     
         exp5 += delta[0][j];
     }       
  
     //IF the S[0] issue is not resolved this constraint should be enabled
-    //model.addConstr(S[0] == 3, "125_1");
+#ifdef LAYER_0_SIMD_UNRESOLVED
+    model.addConstr(S[0] == 3, "125_1");
     //else enable this constraint
+#else    
     model.addConstr(S[0] == exp6, "125");     
-    
+#endif
+
     model.addConstr(exp5 == 1, "126");
     for(i = 1; i < num_conv_layer + num_lfc_layer; i++) {
         GRBLinExpr exp5, exp6;
@@ -366,13 +372,16 @@ int milp_solver(unsigned int num_lut, unsigned int num_bram, unsigned int num_co
     **********************************************************************/
 #if defined(FIRST_CUT) || defined(FULL)
     for(j = 0; j < SIMD_EXP; j++) {
+#ifdef LAYER_0_SIMD_UNRESOLVED
             //IF the S[0] issue is not resolved this constraint should be enabled
-            //model.addConstr(tau[0] >= 3 * 1 * P[0] - (1 - delta[0][j]) * BIG_M, "171");
-            //model.addConstr(3 * 1 * P[0] >= tau[0] - (1 - delta[0][j]) * BIG_M, "181");
+            model.addConstr(tau[0] >= 3 * 1 * P[0] - (1 - delta[0][j]) * BIG_M, "171");
+            model.addConstr(3 * 1 * P[0] >= tau[0] - (1 - delta[0][j]) * BIG_M, "181");
+#else    
             //else enable this constraint
             model.addConstr(tau[0] >= 3 * (j+1) * P[0] - (1 - delta[0][j]) * BIG_M, "171"); 
             model.addConstr(3 * (j+1) * P[0] >= tau[0] - (1 - delta[0][j]) * BIG_M, "181");
-        }
+#endif
+    }
     for(i = 1; i < num_conv_layer + num_lfc_layer; i++) {
         for(j = 0; j < SIMD_EXP; j++) {
             model.addConstr(tau[i] >= pow(2, j+1) * P[i] - (1 - delta[i][j]) * BIG_M, "172");
@@ -399,10 +408,13 @@ int milp_solver(unsigned int num_lut, unsigned int num_bram, unsigned int num_co
     GRBLinExpr exp7, exp8;
     for(i = 0; i < SIMD_EXP; i++) { 
         for(j = 0; j < PE_EXP; j++) {
+#ifdef LAYER_0_SIMD_UNRESOLVED
             //IF the S[0] issue is not resolved this constraint should be enabled
-            //exp8 += 3 * 1 * pow(2, j+1) * lambda[0][i * SIMD_EXP + j];
+            exp8 += 3 * 1 * pow(2, j+1) * lambda[0][i * SIMD_EXP + j];
+#else
             //else enable this constraint
             exp8 += 3 * (i+1) * pow(2, j+1) * lambda[0][i * SIMD_EXP + j];
+#endif
             exp7 += lambda[0][i * SIMD_EXP + j];    
         }
     }
@@ -554,7 +566,7 @@ int milp_solver(unsigned int num_lut, unsigned int num_bram, unsigned int num_co
                                 ((2 - alpha[1][i] - gamma[1][i]) * BIG_M_new), "8_1");
    
     }
-    
+
     for(i = num_conv_layer; i < num_lfc_layer + num_conv_layer; i++) {
         //LUT section
         model.addConstr(lut[i] >= res_model_lfc[0][0].pe_coeff   * P[i]   +
@@ -728,13 +740,16 @@ int milp_solver(unsigned int num_lut, unsigned int num_bram, unsigned int num_co
 #if defined(FIRST_CUT) || defined(FULL)
     for(i=0; i < SIMD_EXP; i++){
        for(j = 0; j < PE_EXP; j++) {
+#ifdef LAYER_0_SIMD_UNRESOLVED 
          //IF the S[0] issue is not resolved this constraint should be enabled
-         //model.addConstr((num_ops_per_layer[0] / (3 * 1 * pow(2, j+1))) >=  layer_lat[0] - (1 - lambda[0][i * SIMD_EXP + j]) * BIG_M, "19");
-         //model.addConstr(layer_lat[0]  >= (num_ops_per_layer[0] / (3 * 1 * pow(2, j+1))) - (1 - lambda[0][i * SIMD_EXP + j]) * BIG_M, "20");
+         model.addConstr((num_ops_per_layer[0] / (3 * 1 * pow(2, j+1))) >=  layer_lat[0] - (1 - lambda[0][i * SIMD_EXP + j]) * BIG_M, "19");
+         model.addConstr(layer_lat[0]  >= (num_ops_per_layer[0] / (3 * 1 * pow(2, j+1))) - (1 - lambda[0][i * SIMD_EXP + j]) * BIG_M, "20");
+#else
          //else enable this constraint
          model.addConstr((num_ops_per_layer[0] / (3 * (i+1) * pow(2, j+1))) >=  layer_lat[0] - (1 - lambda[0][i * SIMD_EXP + j]) * BIG_M, "19");
          model.addConstr(layer_lat[0]  >= (num_ops_per_layer[0] / (3 * (i + 1) * pow(2, j+1))) - (1 - lambda[0][i * SIMD_EXP + j]) * BIG_M, "20");
-        }
+#endif 
+       }
     }
     
     for(i = 1; i < num_conv_layer; i++) {
@@ -816,7 +831,7 @@ int milp_solver(unsigned int num_lut, unsigned int num_bram, unsigned int num_co
         Objective function: minimize the latency and reconfiguration time
     **********************************************************************/
     model.setObjective(exp_obj,  GRB_MINIMIZE);
-    model.set(GRB_IntParam_NumericFocus, 2);
+    //model.set(GRB_IntParam_NumericFocus, 3);
     model.set(GRB_DoubleParam_IntFeasTol, 1e-9);
     //start optimization
     model.optimize();
@@ -857,7 +872,7 @@ int milp_solver(unsigned int num_lut, unsigned int num_bram, unsigned int num_co
 
     //    cout << " total luts used " << total_luts_used << endl;
 
-
+/*
     cout<< "beta" <<endl;
     for(i = 0; i < num_conv_layer; i++){
         cout << "layer " << i << "\t";
@@ -885,7 +900,7 @@ int milp_solver(unsigned int num_lut, unsigned int num_bram, unsigned int num_co
         cout <<endl;
     }
     cout <<endl;
-
+*/
     //Prints related to chunks and allocations of layers in chunks
     float num_chunks = 0, num_cuts = 0;
     for(i = 0; i < num_conv_layer + num_lfc_layer - 1; i++) {
@@ -924,7 +939,8 @@ int milp_solver(unsigned int num_lut, unsigned int num_bram, unsigned int num_co
         
         cout <<endl;
     }
-    
+
+/*    
     cout << "y[i][j] "<<endl;
     for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
         cout << "layer " << i << "\t";
@@ -934,7 +950,7 @@ int milp_solver(unsigned int num_lut, unsigned int num_bram, unsigned int num_co
 
         cout <<endl;
     }
-
+*/
     cout <<"        ";
     for(j = 0; j < num_conv_layer + num_lfc_layer; j++)
        cout << "\tch["<<j<<"]";
@@ -950,7 +966,8 @@ int milp_solver(unsigned int num_lut, unsigned int num_bram, unsigned int num_co
     for(j = 0; j < num_conv_layer + num_lfc_layer; j++)
         cout<< phi_tot[j].get(GRB_DoubleAttr_X) << "\t";
     cout <<endl <<endl;
-    
+ 
+ /*   
     //data dump
     cout <<"lut dump " <<endl; 
     for(k = 0; k < t; k++) {
@@ -966,6 +983,7 @@ int milp_solver(unsigned int num_lut, unsigned int num_bram, unsigned int num_co
     }
     
     cout <<endl <<endl;
+
     //data dump
     for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
         cout << "b["<<i<<"]";
@@ -983,7 +1001,7 @@ int milp_solver(unsigned int num_lut, unsigned int num_bram, unsigned int num_co
         }
         cout <<endl;
     }
-
+*/
     
 /*
     for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {

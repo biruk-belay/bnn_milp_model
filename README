@@ -1,4 +1,7 @@
 This implementation includes two models 
+        ******************************************
+                    First model
+        ******************************************
     * milp.cpp -> The layer to be cut is not part of the optimization problem. In this implementation the LUTs are the only resources modeled.
         compile using
 
@@ -11,7 +14,15 @@ This implementation includes two models
         for the full network (without cuts)
         g++ -DFULL -o run milp.cpp milp_top.cpp -lgurobi_g++5.2 -lgurobi_c++ -lgurobi70
 
+
+        ****************************************
+                    Second Model
+        ****************************************
     * milp_new.cpp -> The layer to be cut is also part of the optimization problem. In this new implementation the bram utilization is also part of the model
         
         compile using
-        g++ -DFULL -o run milp_new.cpp milp_top.cpp -lgurobi_g++5.2 -lgurobi_c++ -lgurobi70
+        If the issue with the simd of the first layer is resolved
+            g++ -DFULL -DLAYER_0_SIMD_UNRESOLVED -o run milp_new.cpp milp_top.cpp -lgurobi_g++5.2 -lgurobi_c++ -lgurobi70
+        else
+            g++ -DFULL -o run milp_new.cpp milp_top.cpp -lgurobi_g++5.2 -lgurobi_c++ -lgurobi70
+        
