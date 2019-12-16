@@ -21,7 +21,7 @@ This implementation includes two models
     * milp_new.cpp -> The layer to be cut is also part of the optimization problem. In this new implementation the bram utilization is also part of the model
         
         compile using
-        If the issue with the simd of the first layer is resolved
+        If the issue with the simd of the first layer is unresolved
             g++ -DFULL -DLAYER_0_SIMD_UNRESOLVED -o run milp_new.cpp milp_top.cpp -lgurobi_g++5.2 -lgurobi_c++ -lgurobi70
         else
             g++ -DFULL -o run milp_new.cpp milp_top.cpp -lgurobi_g++5.2 -lgurobi_c++ -lgurobi70
