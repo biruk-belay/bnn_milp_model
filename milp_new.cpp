@@ -26,7 +26,7 @@ int milp_solver(unsigned int num_lut, unsigned int num_bram, unsigned int num_co
     unsigned int i, j, k, m;
     unsigned int status;
 
-    unsigned int pe_th[t] =   {16, 63}; 
+    unsigned int pe_th[t] =   {16, 7}; 
     unsigned int simd_th[t] = {16, 63}; 
     unsigned long long BIG_M = 9000000000; //represents infinity
     unsigned long long BIG_M_new = 1000000000; //represents infinity

@@ -8,7 +8,7 @@ using namespace std;
 int main()
 {
     unsigned int i;
-    float percentage_of_resource_used = 0.71;
+    float percentage_of_resource_used = 0.5;
     unsigned int lut = TOT_LUT_PYNQ * percentage_of_resource_used;
     unsigned int bram = TOT_BRAM_PYNQ * percentage_of_resource_used;
 
@@ -33,16 +33,16 @@ int main()
 */
     model_variables res_model_lfc[2][NUM_QUADRANTS] = {{{20.92, 6.39, 1233.5}, {55.2, 10.15, 900.2},
                                                      {13.853, 60.9, 876}, {66.19, 54.18, -1317.8}},
-                                                     {{1.0, 0, 10}, {0, 0, 10},
-                                                     {2.0, 0, 14}, {0, 0, 14}}}; 
+                                                     {{1.0, 0, 4}, {0.5, 0, 1},
+                                                     {0, 0, 11}, {1, 0, 1}}}; 
 
 
 /*
     model_variables res_model_conv[NUM_QUADRANTS] = {{39.76, 9.69, 2244}, {96.13, 19.79, 1552},
                                                 {19.79, 96.13, 1552}, {121.4, 90.26, -1674}};
 */
-    model_variables res_model_conv[2][NUM_QUADRANTS] = {{{26.64, 20.19, 1313}, {118.6, 19.79, 435},
-                                                       {38.64, 185.8, -845.8}, {124.5, 115.8, -4317}},
+    model_variables res_model_conv[2][NUM_QUADRANTS] = {{{26.64, 20.19, 1313}, {38.64, 185.8, -845.8},
+                                                       {118.6, 19.79, 435}, {124.5, 115.8, -4317}},
                                                        {{1.0, 0, 10}, {0, 0, 10},
                                                        {2.0, 0, 14}, {0, 0, 14}}};
 
