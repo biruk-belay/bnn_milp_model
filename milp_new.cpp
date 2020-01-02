@@ -26,8 +26,8 @@ int milp_solver(unsigned int num_lut, unsigned int num_bram, unsigned int num_co
     unsigned int i, j, k, m;
     unsigned int status;
 
-    unsigned int pe_th[t] =   {16, 7}; 
-    unsigned int simd_th[t] = {16, 63}; 
+    unsigned int pe_th[t+1] =   {16, 63,  7}; 
+    unsigned int simd_th[t+1] = {16,  63, 63 }; 
     unsigned long long BIG_M = 9000000000; //represents infinity
     unsigned long long BIG_M_new = 1000000000; //represents infinity
     double episilon = 0.1;
@@ -135,7 +135,7 @@ int milp_solver(unsigned int num_lut, unsigned int num_bram, unsigned int num_co
     ***********************************************************************/
     GRBVarArray bram(num_conv_layer + num_lfc_layer);
     for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
-        bram[i] = model.addVar(1.0, MAX_LUT_PYNQ, 0.0, GRB_CONTINUOUS);
+        bram[i] = model.addVar(0.0, MAX_LUT_PYNQ, 0.0, GRB_CONTINUOUS);
     }
  
    /**********************************************************************
@@ -502,17 +502,42 @@ int milp_solver(unsigned int num_lut, unsigned int num_bram, unsigned int num_co
    /****************************************************************************
     Constr 9:
     ****************************************************************************/ 
-     for(k = 0; k < t; k++) {
+     for(k = 0; k < 1; k++) {
          for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
             model.addConstr(P[i] - episilon >= pe_th[k] - BIG_M_new * (1 - alpha[k][i]), "1");
             model.addConstr(P[i] - episilon <= pe_th[k] + BIG_M_new * alpha[k][i], "2");
          }
      }
      
+    for(k = 1; k < t; k++) {
+         for(i = 0; i < num_conv_layer; i++) {
+            model.addConstr(P[i] - episilon >= pe_th[k] - BIG_M_new * (1 - alpha[k][i]), "1");
+            model.addConstr(P[i] - episilon <= pe_th[k] + BIG_M_new * alpha[k][i], "2");
+         }
+         
+        for(i = num_conv_layer; i < num_conv_layer + num_lfc_layer; i++) {
+            model.addConstr(P[i] - episilon >= pe_th[k+1] - BIG_M_new * (1 - alpha[k][i]), "1");
+            model.addConstr(P[i] - episilon <= pe_th[k+1] + BIG_M_new * alpha[k][i], "2");
+         }
+     }
+      
+      
      for(k = 0; k < t; k++) {
          for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
              model.addConstr(S[i] - episilon >= simd_th[k] - BIG_M_new * (1 - gamma[k][i]), "3");
              model.addConstr(S[i] - episilon <= simd_th[k] + BIG_M_new * gamma[k][i], "4");
+         }
+     }
+     
+    for(k = 0; k < t; k++) {
+         for(i = 0; i < num_conv_layer; i++) {
+             model.addConstr(S[i] - episilon >= simd_th[k] - BIG_M_new * (1 - gamma[k][i]), "3");
+             model.addConstr(S[i] - episilon <= simd_th[k] + BIG_M_new * gamma[k][i], "4");
+         }
+
+         for(i = num_conv_layer; i < num_conv_layer + num_lfc_layer; i++) {
+             model.addConstr(S[i] - episilon >= simd_th[k+1] - BIG_M_new * (1 - gamma[k][i]), "3");
+             model.addConstr(S[i] - episilon <= simd_th[k+1] + BIG_M_new * gamma[k][i], "4");
          }
      }
 
@@ -591,6 +616,7 @@ int milp_solver(unsigned int num_lut, unsigned int num_bram, unsigned int num_co
 
 
         //bram section
+        if(i != 8) {
         model.addConstr(bram[i] >= res_model_lfc[1][0].pe_coeff   * P[i]   +
                                 res_model_lfc[1][0].simd_coeff * S[i] +
                                 res_model_lfc[1][0].intercept -
@@ -611,7 +637,11 @@ int milp_solver(unsigned int num_lut, unsigned int num_bram, unsigned int num_co
                                 res_model_lfc[1][3].intercept -
                                 (2 - alpha[1][i] - gamma[1][i]) * BIG_M_new, "7_1");
           
-    }
+       }
+        
+        else
+            model.addConstr(bram[8] == 0, "7_2");
+}
    
     /******************************************************************
         This is a mirror of the above constraint to enforce
@@ -660,7 +690,7 @@ int milp_solver(unsigned int num_lut, unsigned int num_bram, unsigned int num_co
                             res_model_conv[1][3].intercept) >= (bram[i]  -
                             ((2 - alpha[1][i] - gamma[1][i]) * BIG_M_new)), "12");
 
-    }   
+ }
 
 
     for(i = num_conv_layer; i < num_lfc_layer + num_conv_layer; i++) {
@@ -686,6 +716,7 @@ int milp_solver(unsigned int num_lut, unsigned int num_bram, unsigned int num_co
         
 
         //bram section
+        if(i != 8) {
         model.addConstr(res_model_lfc[1][0].pe_coeff   *  P[i]   +
                             res_model_lfc[1][0].simd_coeff *  S[i] +
                             res_model_lfc[1][0].intercept  >= bram[i]  -
@@ -706,7 +737,11 @@ int milp_solver(unsigned int num_lut, unsigned int num_bram, unsigned int num_co
                             res_model_lfc[1][3].intercept >= bram[i]  -
                             (2 - alpha[1][i] - gamma[1][i]) * BIG_M_new, "12");
   
-    }
+    
+        }
+        else 
+            model.addConstr(bram[8] == 0, "12_1");
+}
 
    /**********************************************************************
         Constr 11: Constraints related to chunks and resources
@@ -719,18 +754,18 @@ int milp_solver(unsigned int num_lut, unsigned int num_bram, unsigned int num_co
             model.addConstr(a[0][i][j] >= lut[i] - (1 - y[i][j]) * BIG_M_new, "917");
         
             exp_lut += a[0][i][j];
-          
+         
             model.addConstr(a[1][i][j] <= y[i][j] * BIG_M_new, "915_1");
             model.addConstr(a[1][i][j] <= bram[i], "916_1");
-            model.addConstr(a[1][i][j] >= bram[i] - (1 - y[i][j]) * BIG_M_new, "917_1");
-
+            model.addConstr(a[1][i][j] >= bram[i] - (1 - y[i][j]) * BIG_M_new, "917_1");    
+            
             exp_bram += a[1][i][j];
             
         }
             model.addConstr(exp_lut  <=  MAX_LUT_PYNQ, "919");
             model.addConstr(exp_bram <=  MAX_BRAM_PYNQ, "919_1");
             model.addConstr(R[0][j]  ==  exp_lut, "918");
-            model.addConstr(R[1][j]  ==  exp_bram, "918_1");    
+            model.addConstr(R[1][j]  ==  exp_bram, "918_1");
     }
 
 
