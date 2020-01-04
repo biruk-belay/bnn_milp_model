@@ -26,8 +26,8 @@ int milp_solver(unsigned int num_lut, unsigned int num_bram, unsigned int num_co
     unsigned int i, j, k, m;
     unsigned int status;
 
-    unsigned int pe_th[t+1] =   {16, 63,  7}; 
-    unsigned int simd_th[t+1] = {16,  63, 63 }; 
+    unsigned int pe_th[t+5] =   {16, 63, 63, 31, 63, 63, 7}; 
+    unsigned int simd_th[t+5] = {16, 63, 63, 63, 63, 63, 63}; 
     unsigned long long BIG_M = 9000000000; //represents infinity
     unsigned long long BIG_M_new = 1000000000; //represents infinity
     double episilon = 0.1;
@@ -502,43 +502,86 @@ int milp_solver(unsigned int num_lut, unsigned int num_bram, unsigned int num_co
    /****************************************************************************
     Constr 9:
     ****************************************************************************/ 
-     for(k = 0; k < 1; k++) {
-         for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
-            model.addConstr(P[i] - episilon >= pe_th[k] - BIG_M_new * (1 - alpha[k][i]), "1");
-            model.addConstr(P[i] - episilon <= pe_th[k] + BIG_M_new * alpha[k][i], "2");
-         }
+     //LUTs in all layers PE
+     for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {   
+         model.addConstr(P[i] - episilon >= pe_th[0] - BIG_M_new * (1 - alpha[0][i]), "1");
+         model.addConstr(P[i] - episilon <= pe_th[0] + BIG_M_new * alpha[0][i], "2");    
      }
-     
-    for(k = 1; k < t; k++) {
-         for(i = 0; i < num_conv_layer; i++) {
-            model.addConstr(P[i] - episilon >= pe_th[k] - BIG_M_new * (1 - alpha[k][i]), "1");
-            model.addConstr(P[i] - episilon <= pe_th[k] + BIG_M_new * alpha[k][i], "2");
-         }
          
-        for(i = num_conv_layer; i < num_conv_layer + num_lfc_layer; i++) {
-            model.addConstr(P[i] - episilon >= pe_th[k+1] - BIG_M_new * (1 - alpha[k][i]), "1");
-            model.addConstr(P[i] - episilon <= pe_th[k+1] + BIG_M_new * alpha[k][i], "2");
-         }
-     }
-      
-      
-     for(k = 0; k < t; k++) {
-         for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {
-             model.addConstr(S[i] - episilon >= simd_th[k] - BIG_M_new * (1 - gamma[k][i]), "3");
-             model.addConstr(S[i] - episilon <= simd_th[k] + BIG_M_new * gamma[k][i], "4");
-         }
+     //BRAM model for L0 and L1
+     for(i = 0; i < 2; i++) {   
+         model.addConstr(P[i] - episilon >= pe_th[1] - BIG_M_new * (1 - alpha[1][i]), "1");
+         model.addConstr(P[i] - episilon <= pe_th[1] + BIG_M_new * alpha[1][i], "2");
      }
      
-    for(k = 0; k < t; k++) {
-         for(i = 0; i < num_conv_layer; i++) {
-             model.addConstr(S[i] - episilon >= simd_th[k] - BIG_M_new * (1 - gamma[k][i]), "3");
-             model.addConstr(S[i] - episilon <= simd_th[k] + BIG_M_new * gamma[k][i], "4");
-         }
+     //BRAM model for L2
+     for(i = 2; i < 3; i++) {   
+         model.addConstr(P[i] - episilon >= pe_th[2] - BIG_M_new * (1 - alpha[1][i]), "1");
+         model.addConstr(P[i] - episilon <= pe_th[2] + BIG_M_new * alpha[1][i], "2");
+     }
+     
+     //BRAM model for L3 and L3
+     for(i = 3; i < 4; i++) {   
+         model.addConstr(P[i] - episilon >= pe_th[3] - BIG_M_new * (1 - alpha[1][i]), "1");
+         model.addConstr(P[i] - episilon <= pe_th[3] + BIG_M_new * alpha[1][i], "2");
+     }
 
-         for(i = num_conv_layer; i < num_conv_layer + num_lfc_layer; i++) {
-             model.addConstr(S[i] - episilon >= simd_th[k+1] - BIG_M_new * (1 - gamma[k][i]), "3");
-             model.addConstr(S[i] - episilon <= simd_th[k+1] + BIG_M_new * gamma[k][i], "4");
-         }
+     //BRAM model for L4
+     for(i = 4; i < 5; i++) {   
+         model.addConstr(P[i] - episilon >= pe_th[4] - BIG_M_new * (1 - alpha[1][i]), "1");
+         model.addConstr(P[i] - episilon <= pe_th[4] + BIG_M_new * alpha[1][i], "2");
+     }
+     
+     //BRAM model for L5
+     for(i = 5; i < 6; i++) {   
+         model.addConstr(P[i] - episilon >= pe_th[5] - BIG_M_new * (1 - alpha[1][i]), "1");
+         model.addConstr(P[i] - episilon <= pe_th[5] + BIG_M_new * alpha[1][i], "2");
+     }
+
+     //BRAM model for LFC layers
+     for(i = num_conv_layer; i < num_conv_layer + num_lfc_layer; i++) {
+         model.addConstr(P[i] - episilon >= pe_th[4] - BIG_M_new * (1 - alpha[1][i]), "1");
+         model.addConstr(P[i] - episilon <= pe_th[4] + BIG_M_new * alpha[1][i], "2");
+     }
+     
+     //LUTs in all layers SIMD
+     for(i = 0; i < num_conv_layer + num_lfc_layer; i++) {    
+         model.addConstr(S[i] - episilon >= simd_th[0] - BIG_M_new * (1 - gamma[0][i]), "3");    
+         model.addConstr(S[i] - episilon <= simd_th[0] + BIG_M_new * gamma[0][i], "4");
+     }
+
+     for(i = 0; i < 2; i++) {    
+         model.addConstr(S[i] - episilon >= simd_th[1] - BIG_M_new * (1 - gamma[1][i]), "3");    
+         model.addConstr(S[i] - episilon <= simd_th[1] + BIG_M_new * gamma[1][i], "4");    
+     }
+     
+     //BRAM for L2
+     for(i = 2; i < 3; i++) {    
+         model.addConstr(S[i] - episilon >= simd_th[2] - BIG_M_new * (1 - gamma[1][i]), "3");    
+         model.addConstr(S[i] - episilon <= simd_th[2] + BIG_M_new * gamma[1][i], "4");    
+     }
+    
+     //BRAM for L3
+     for(i = 3; i < 4; i++) {    
+         model.addConstr(S[i] - episilon >= simd_th[3] - BIG_M_new * (1 - gamma[1][i]), "3");    
+         model.addConstr(S[i] - episilon <= simd_th[3] + BIG_M_new * gamma[1][i], "4");    
+     }
+    
+     //BRAM for L4
+     for(i = 4; i < 5; i++) {    
+         model.addConstr(S[i] - episilon >= simd_th[4] - BIG_M_new * (1 - gamma[1][i]), "3");    
+         model.addConstr(S[i] - episilon <= simd_th[4] + BIG_M_new * gamma[1][i], "4");    
+     }
+
+     //BRAM for L5
+     for(i = 5; i < 6; i++) {    
+         model.addConstr(S[i] - episilon >= simd_th[5] - BIG_M_new * (1 - gamma[1][i]), "3");    
+         model.addConstr(S[i] - episilon <= simd_th[5] + BIG_M_new * gamma[1][i], "4");    
+     }
+       
+     for(i = num_conv_layer; i < num_conv_layer + num_lfc_layer; i++) {
+         model.addConstr(S[i] - episilon >= simd_th[4] - BIG_M_new * (1 - gamma[1][i]), "3");   
+         model.addConstr(S[i] - episilon <= simd_th[4] + BIG_M_new * gamma[1][i], "4");    
      }
 
     /******************************************************************
@@ -568,8 +611,11 @@ int milp_solver(unsigned int num_lut, unsigned int num_bram, unsigned int num_co
                                 res_model_conv[0][3].simd_coeff * S[i] +
                                 res_model_conv[0][3].intercept -
                                 ((2 - alpha[0][i] - gamma[0][i]) * BIG_M_new), "8");
-
-        //Bram section
+    }
+    
+  
+    //Bram section
+    for(i = 0; i < 2; i++) {
         model.addConstr(bram[i] >= res_model_conv[1][0].pe_coeff   * P[i]   +
                                 res_model_conv[1][0].simd_coeff * S[i] +
                                 res_model_conv[1][0].intercept -
@@ -591,9 +637,102 @@ int milp_solver(unsigned int num_lut, unsigned int num_bram, unsigned int num_co
                                 ((2 - alpha[1][i] - gamma[1][i]) * BIG_M_new), "8_1");
    
     }
+    
+    //BRAM for L2
+    for(i = 2; i < 3; i++) {
+        model.addConstr(bram[i] >= res_model_conv[2][0].pe_coeff   * P[i]   +
+                                res_model_conv[2][0].simd_coeff * S[i] +
+                                res_model_conv[2][0].intercept -
+                                ((alpha[1][i] + gamma[1][i]) * BIG_M_new), "5_1");
 
+        model.addConstr(bram[i] >= res_model_conv[2][1].pe_coeff   * P[i]   +
+                                res_model_conv[2][1].simd_coeff * S[i] +
+                                res_model_conv[2][1].intercept -
+                                ((1 - alpha[1][i] + gamma[1][i]) * BIG_M_new), "6_1");
+
+        model.addConstr(bram[i] >= res_model_conv[2][2].pe_coeff   * P[i]   +
+                                res_model_conv[2][2].simd_coeff * S[i] +
+                                res_model_conv[2][2].intercept -
+                                ((1 + alpha[1][i] - gamma[1][i]) * BIG_M_new), "7_1");
+
+         model.addConstr(bram[i] >= res_model_conv[2][3].pe_coeff   * P[i]   +
+                                res_model_conv[2][3].simd_coeff * S[i] +
+                                res_model_conv[2][3].intercept -
+                                ((2 - alpha[1][i] - gamma[1][i]) * BIG_M_new), "8_1");
+   
+    }
+
+    for(i = 3; i < 4; i++) {
+        model.addConstr(bram[i] >= res_model_conv[3][0].pe_coeff   * P[i]   +
+                                res_model_conv[3][0].simd_coeff * S[i] +
+                                res_model_conv[3][0].intercept -
+                                ((alpha[1][i] + gamma[1][i]) * BIG_M_new), "5_1");
+
+        model.addConstr(bram[i] >= res_model_conv[3][1].pe_coeff   * P[i]   +
+                                res_model_conv[3][1].simd_coeff * S[i] +
+                                res_model_conv[3][1].intercept -
+                                ((1 - alpha[1][i] + gamma[1][i]) * BIG_M_new), "6_1");
+
+        model.addConstr(bram[i] >= res_model_conv[3][2].pe_coeff   * P[i]   +
+                                res_model_conv[3][2].simd_coeff * S[i] +
+                                res_model_conv[3][2].intercept -
+                                ((1 + alpha[1][i] - gamma[1][i]) * BIG_M_new), "7_1");
+
+         model.addConstr(bram[i] >= res_model_conv[3][3].pe_coeff   * P[i]   +
+                                res_model_conv[3][3].simd_coeff * S[i] +
+                                res_model_conv[3][3].intercept -
+                                ((2 - alpha[1][i] - gamma[1][i]) * BIG_M_new), "8_1");
+   
+    }
+
+    //BRAM for L4
+    for(i = 4; i < 5; i++) {
+        model.addConstr(bram[i] >= res_model_conv[4][0].pe_coeff   * P[i]   +
+                                res_model_conv[4][0].simd_coeff * S[i] +
+                                res_model_conv[4][0].intercept -
+                                ((alpha[1][i] + gamma[1][i]) * BIG_M_new), "5_1");
+
+        model.addConstr(bram[i] >= res_model_conv[4][1].pe_coeff   * P[i]   +
+                                res_model_conv[4][1].simd_coeff * S[i] +
+                                res_model_conv[4][1].intercept -
+                                ((1 - alpha[1][i] + gamma[1][i]) * BIG_M_new), "6_1");
+
+        model.addConstr(bram[i] >= res_model_conv[4][2].pe_coeff   * P[i]   +
+                                res_model_conv[4][2].simd_coeff * S[i] +
+                                res_model_conv[4][2].intercept -
+                                ((1 + alpha[1][i] - gamma[1][i]) * BIG_M_new), "7_1");
+
+         model.addConstr(bram[i] >= res_model_conv[4][3].pe_coeff   * P[i]   +
+                                res_model_conv[4][3].simd_coeff * S[i] +
+                                res_model_conv[4][3].intercept -
+                                ((2 - alpha[1][i] - gamma[1][i]) * BIG_M_new), "8_1");
+   
+    }
+    for(i = 5; i < 6; i++) {
+        model.addConstr(bram[i] >= res_model_conv[5][0].pe_coeff   * P[i]   +
+                                res_model_conv[5][0].simd_coeff * S[i] +
+                                res_model_conv[5][0].intercept -
+                                ((alpha[1][i] + gamma[1][i]) * BIG_M_new), "5_1");
+
+        model.addConstr(bram[i] >= res_model_conv[5][1].pe_coeff   * P[i]   +
+                                res_model_conv[5][1].simd_coeff * S[i] +
+                                res_model_conv[5][1].intercept -
+                                ((1 - alpha[1][i] + gamma[1][i]) * BIG_M_new), "6_1");
+
+        model.addConstr(bram[i] >= res_model_conv[5][2].pe_coeff   * P[i]   +
+                                res_model_conv[5][2].simd_coeff * S[i] +
+                                res_model_conv[5][2].intercept -
+                                ((1 + alpha[1][i] - gamma[1][i]) * BIG_M_new), "7_1");
+
+         model.addConstr(bram[i] >= res_model_conv[5][3].pe_coeff   * P[i]   +
+                                res_model_conv[5][3].simd_coeff * S[i] +
+                                res_model_conv[5][3].intercept -
+                                ((2 - alpha[1][i] - gamma[1][i]) * BIG_M_new), "8_1");
+   
+    }
+
+    //LFC LUT section
     for(i = num_conv_layer; i < num_lfc_layer + num_conv_layer; i++) {
-        //LUT section
         model.addConstr(lut[i] >= res_model_lfc[0][0].pe_coeff   * P[i]   +
                                 res_model_lfc[0][0].simd_coeff * S[i] + 
                                 res_model_lfc[0][0].intercept -
@@ -640,7 +779,7 @@ int milp_solver(unsigned int num_lut, unsigned int num_bram, unsigned int num_co
        }
         
         else
-            model.addConstr(bram[8] == 0, "7_2");
+            model.addConstr(bram[8] == 8, "7_2");
 }
    
     /******************************************************************
@@ -668,8 +807,9 @@ int milp_solver(unsigned int num_lut, unsigned int num_bram, unsigned int num_co
                             res_model_conv[0][3].simd_coeff * S[i] +
                             res_model_conv[0][3].intercept) >= (lut[i]  -
                             ((2 - alpha[0][i] - gamma[0][i]) * BIG_M_new)), "12");
-
+    }
         //bram section
+    for(i = 0; i < 2; i++) {
         model.addConstr((res_model_conv[1][0].pe_coeff  *  P[i]   +
                             res_model_conv[1][0].simd_coeff *  S[i] +
                             res_model_conv[1][0].intercept)  >= (bram[i]  -
@@ -692,7 +832,101 @@ int milp_solver(unsigned int num_lut, unsigned int num_bram, unsigned int num_co
 
  }
 
+    for(i = 2; i < 3; i++) {
+        model.addConstr((res_model_conv[2][0].pe_coeff  *  P[i]   +
+                            res_model_conv[2][0].simd_coeff *  S[i] +
+                            res_model_conv[2][0].intercept)  >= (bram[i]  -
+                            ((alpha[1][i] + gamma[1][i]) * BIG_M_new)), "9");
 
+        model.addConstr((res_model_conv[2][1].pe_coeff  * P[i]    +
+                            res_model_conv[2][1].simd_coeff * S[i]  +
+                            res_model_conv[2][1].intercept) >= (bram[i]   -
+                            (1 - alpha[1][i] + gamma[1][i]) * BIG_M_new), "10");
+
+        model.addConstr((res_model_conv[2][2].pe_coeff  * P[i]    +
+                            res_model_conv[2][2].simd_coeff * S[i]  +
+                            res_model_conv[2][2].intercept)  >= (bram[i]  -
+                            ((1 + alpha[1][i] - gamma[1][i]) * BIG_M_new)), "11");
+
+        model.addConstr((res_model_conv[2][3].pe_coeff  * P[i]   +
+                            res_model_conv[2][3].simd_coeff * S[i] +
+                            res_model_conv[2][3].intercept) >= (bram[i]  -
+                            ((2 - alpha[1][i] - gamma[1][i]) * BIG_M_new)), "12");
+
+ }
+
+
+    for(i = 3; i < 4; i++) {
+        model.addConstr((res_model_conv[3][0].pe_coeff  *  P[i]   +
+                            res_model_conv[3][0].simd_coeff *  S[i] +
+                            res_model_conv[3][0].intercept)  >= (bram[i]  -
+                            ((alpha[1][i] + gamma[1][i]) * BIG_M_new)), "9");
+
+        model.addConstr((res_model_conv[3][1].pe_coeff  * P[i]    +
+                            res_model_conv[3][1].simd_coeff * S[i]  +
+                            res_model_conv[3][1].intercept) >= (bram[i]   -
+                            (1 - alpha[1][i] + gamma[1][i]) * BIG_M_new), "10");
+
+        model.addConstr((res_model_conv[3][2].pe_coeff  * P[i]    +
+                            res_model_conv[3][2].simd_coeff * S[i]  +
+                            res_model_conv[3][2].intercept)  >= (bram[i]  -
+                            ((1 + alpha[1][i] - gamma[1][i]) * BIG_M_new)), "11");
+
+        model.addConstr((res_model_conv[3][3].pe_coeff  * P[i]   +
+                            res_model_conv[3][3].simd_coeff * S[i] +
+                            res_model_conv[3][3].intercept) >= (bram[i]  -
+                            ((2 - alpha[1][i] - gamma[1][i]) * BIG_M_new)), "12");
+
+    }
+
+
+    for(i = 4; i < 5; i++) {
+        model.addConstr((res_model_conv[4][0].pe_coeff  *  P[i]   +
+                            res_model_conv[4][0].simd_coeff *  S[i] +
+                            res_model_conv[4][0].intercept)  >= (bram[i]  -
+                            ((alpha[1][i] + gamma[1][i]) * BIG_M_new)), "9");
+
+        model.addConstr((res_model_conv[4][1].pe_coeff  * P[i]    +
+                            res_model_conv[4][1].simd_coeff * S[i]  +
+                            res_model_conv[4][1].intercept) >= (bram[i]   -
+                            (1 - alpha[1][i] + gamma[1][i]) * BIG_M_new), "10");
+
+        model.addConstr((res_model_conv[4][2].pe_coeff  * P[i]    +
+                            res_model_conv[4][2].simd_coeff * S[i]  +
+                            res_model_conv[4][2].intercept)  >= (bram[i]  -
+                            ((1 + alpha[1][i] - gamma[1][i]) * BIG_M_new)), "11");
+
+        model.addConstr((res_model_conv[4][3].pe_coeff  * P[i]   +
+                            res_model_conv[4][3].simd_coeff * S[i] +
+                            res_model_conv[4][3].intercept) >= (bram[i]  -
+                            ((2 - alpha[1][i] - gamma[1][i]) * BIG_M_new)), "12");
+
+ }
+   
+    for(i = 5; i < 6; i++) {
+        model.addConstr((res_model_conv[5][0].pe_coeff  *  P[i]   +
+                            res_model_conv[5][0].simd_coeff *  S[i] +
+                            res_model_conv[5][0].intercept)  >= (bram[i]  -
+                            ((alpha[1][i] + gamma[1][i]) * BIG_M_new)), "9");
+
+        model.addConstr((res_model_conv[5][1].pe_coeff  * P[i]    +
+                            res_model_conv[5][1].simd_coeff * S[i]  +
+                            res_model_conv[5][1].intercept) >= (bram[i]   -
+                            (1 - alpha[1][i] + gamma[1][i]) * BIG_M_new), "10");
+
+        model.addConstr((res_model_conv[5][2].pe_coeff  * P[i]    +
+                            res_model_conv[5][2].simd_coeff * S[i]  +
+                            res_model_conv[5][2].intercept)  >= (bram[i]  -
+                            ((1 + alpha[1][i] - gamma[1][i]) * BIG_M_new)), "11");
+
+        model.addConstr((res_model_conv[5][3].pe_coeff  * P[i]   +
+                            res_model_conv[5][3].simd_coeff * S[i] +
+                            res_model_conv[5][3].intercept) >= (bram[i]  -
+                            ((2 - alpha[1][i] - gamma[1][i]) * BIG_M_new)), "12");
+
+ }
+
+    //LUT LFC
     for(i = num_conv_layer; i < num_lfc_layer + num_conv_layer; i++) {
         model.addConstr(res_model_lfc[0][0].pe_coeff   *  P[i]   +
                             res_model_lfc[0][0].simd_coeff *  S[i] + 
@@ -740,7 +974,7 @@ int milp_solver(unsigned int num_lut, unsigned int num_bram, unsigned int num_co
     
         }
         else 
-            model.addConstr(bram[8] == 0, "12_1");
+            model.addConstr(bram[8] == 8, "12_1");
 }
 
    /**********************************************************************

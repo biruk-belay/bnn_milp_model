@@ -8,7 +8,7 @@ using namespace std;
 int main()
 {
     unsigned int i;
-    float percentage_of_resource_used = 0.5;
+    float percentage_of_resource_used = 0.4;
     unsigned int lut = TOT_LUT_PYNQ * percentage_of_resource_used;
     unsigned int bram = TOT_BRAM_PYNQ * percentage_of_resource_used;
 
@@ -42,10 +42,19 @@ int main()
                                                 {19.79, 96.13, 1552}, {121.4, 90.26, -1674}};
 */
 
-    model_variables res_model_conv[2][NUM_QUADRANTS] = {{{26.64, 20.19, 1313}, {118.6, 19.79, 435},
+    //Layer 1 and layer 3 are augumented for maxpooling layer BRAM consumption
+    model_variables res_model_conv[6][NUM_QUADRANTS] = {{{26.64, 20.19, 1313}, {118.6, 19.79, 435},
                                                        {38.64, 185.8, -845.8}, {124.5, 115.8, -4317}},
-                                                       {{0.5, 0, 3}, {0, 0, 3},
-                                                       {1.0, 0, 5}, {0, 0, 5}}};
+                                                       {{0.5, 0, 5}, {0, 0, 7}, //BRAM L0 and L1. L1 augumented for Maxpooling
+                                                       {1.0, 0, 9}, {0, 0, 9}},
+                                                       {{0.0, 0, 18}, {0, 0, 18}, //BRAM L2
+                                                       {0.0, 0, 34}, {0.0, 0, 34}},
+                                                       {{0.0, 0, 22}, {0, 0, 38}, //BRAM L3 + Maxpool + Inter4
+                                                       {0.0, 0, 22}, {0.0, 0, 38}},
+                                                       {{0.0, 0, 18}, {0, 0, 34},  //BRAM L4 + Inter6
+                                                       {0.0, 0, 18}, {0.0, 0,34}}, 
+                                                       {{0.0, 0, 35}, {0.5, 0, 2}, // BRAM L5
+                                                       {0.0, 0, 36}, {1.0, 0, 4}}};
 
 #ifdef FIRST_CUT
     const unsigned int num_conv_layer   = 4;
