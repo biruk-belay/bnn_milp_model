@@ -10,6 +10,7 @@
 using namespace std;
 
 #define BATCH_SIZE 256
+#define BRAM_OVERHEAD 6
 typedef vector<GRBVar>          GRBVarArray;
 typedef vector<GRBVarArray>     GRBVar2DArray; 
 typedef vector<GRBVar2DArray>     GRBVar3DArray; 
@@ -1139,7 +1140,11 @@ int milp_solver(unsigned int num_lut, unsigned int num_bram, unsigned int num_co
     
     cout <<endl;
     for(j = 0; j < num_conv_layer + num_lfc_layer; j++) {
-        cout << "bram in chunk " << j << "  " << R[1][j].get(GRB_DoubleAttr_X) <<endl;
+        if(R[1][j].get(GRB_DoubleAttr_X) > 1.0)
+            cout << "bram in chunk " << j << "  " << R[1][j].get(GRB_DoubleAttr_X) + BRAM_OVERHEAD <<endl;
+        else
+            cout << "bram in chunk " << j << "  " << R[1][j].get(GRB_DoubleAttr_X) <<endl;
+
     }
 
     //    cout << " total luts used " << total_luts_used << endl;
