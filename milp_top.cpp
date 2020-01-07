@@ -8,7 +8,7 @@ using namespace std;
 int main()
 {
     unsigned int i;
-    float percentage_of_resource_used = 0.4;
+    float percentage_of_resource_used = 0.61;
     unsigned int lut = TOT_LUT_PYNQ * percentage_of_resource_used;
     unsigned int bram = TOT_BRAM_PYNQ * percentage_of_resource_used;
 

@@ -615,7 +615,8 @@ int milp_solver(unsigned int num_lut, unsigned int num_bram, unsigned int num_co
     
   
     //Bram section
-    for(i = 0; i < 2; i++) {
+    model.addConstr(bram[0] == 5, "5_0");
+    for(i = 1; i < 2; i++) {
         model.addConstr(bram[i] >= res_model_conv[1][0].pe_coeff   * P[i]   +
                                 res_model_conv[1][0].simd_coeff * S[i] +
                                 res_model_conv[1][0].intercept -
@@ -808,8 +809,10 @@ int milp_solver(unsigned int num_lut, unsigned int num_bram, unsigned int num_co
                             res_model_conv[0][3].intercept) >= (lut[i]  -
                             ((2 - alpha[0][i] - gamma[0][i]) * BIG_M_new)), "12");
     }
-        //bram section
-    for(i = 0; i < 2; i++) {
+    //bram section
+    model.addConstr(bram[0] == 5, "9_0");
+
+    for(i = 1; i < 2; i++) {
         model.addConstr((res_model_conv[1][0].pe_coeff  *  P[i]   +
                             res_model_conv[1][0].simd_coeff *  S[i] +
                             res_model_conv[1][0].intercept)  >= (bram[i]  -
