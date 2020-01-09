@@ -54,7 +54,7 @@ int main()
                                                        {{0.0, 0, 18}, {0, 0, 34},  //BRAM L4 + Inter6
                                                        {0.0, 0, 18}, {0.0, 0,64}}, 
                                                        {{0.0, 0, 35}, {0.5, 0, 2}, // BRAM L5
-                                                       {0.0, 0, 36}, {1.0, 0, 4}}};
+                                                       {0.0, 0, 36}, {0, 0, 64}}};
 
 #ifdef FIRST_CUT
     const unsigned int num_conv_layer   = 4;
